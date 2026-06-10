@@ -8,6 +8,8 @@ export interface UseNearbyQuestsOptions {
   limit?: number
   debounceMs?: number
   enabled?: boolean
+  /** Bump to force a refetch (e.g. retry button) */
+  refreshKey?: number
 }
 
 /**
@@ -17,7 +19,13 @@ export interface UseNearbyQuestsOptions {
  */
 export function useNearbyQuests(
   center: LatLng | null,
-  { radiusKm, limit = 100, debounceMs = 400, enabled = true }: UseNearbyQuestsOptions,
+  {
+    radiusKm,
+    limit = 100,
+    debounceMs = 400,
+    enabled = true,
+    refreshKey = 0,
+  }: UseNearbyQuestsOptions,
 ) {
   const [quests, setQuests] = useState<NearbyQuest[]>([])
   const [loading, setLoading] = useState(false)
@@ -50,7 +58,7 @@ export function useNearbyQuests(
     }, debounceMs)
 
     return () => window.clearTimeout(timer)
-  }, [lat, lng, radiusKm, limit, debounceMs, enabled])
+  }, [lat, lng, radiusKm, limit, debounceMs, enabled, refreshKey])
 
   return { quests, loading, error }
 }
