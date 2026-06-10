@@ -1,7 +1,8 @@
 import { supabase } from '../lib/supabase/client'
-import type { Quest, ExperienceClass, QuestByIdResult, NearbyQuest } from '../lib/supabase/types'
+import type { Quest, ExperienceClass, QuestStatus, QuestByIdResult, NearbyQuest } from '../lib/supabase/types'
 import type { ServiceResult } from '../lib/serviceUtils'
 import { extractMessage } from '../lib/serviceUtils'
+import { toEwktPoint, questSlug } from '../lib/geo'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,41 @@ export interface GetQuestsByClassOptions {
 export interface GetNearbyQuestsOptions {
   limit?: number
   offset?: number
+}
+
+export interface GetMyQuestsOptions {
+  status?: QuestStatus
+  limit?: number
+  offset?: number
+}
+
+export interface QuestLocationInput {
+  lat: number
+  lng: number
+}
+
+export interface CreateQuestInput {
+  title: string
+  experience_class: ExperienceClass
+  location: QuestLocationInput
+  description?: string | null
+  location_name?: string | null
+  city?: string | null
+  country_code?: string | null
+  tags?: string[]
+  external_url?: string | null
+}
+
+export interface UpdateQuestInput {
+  title?: string
+  experience_class?: ExperienceClass
+  location?: QuestLocationInput
+  description?: string | null
+  location_name?: string | null
+  city?: string | null
+  country_code?: string | null
+  tags?: string[]
+  external_url?: string | null
 }
 
 // ─── Service ─────────────────────────────────────────────────────────────────
@@ -205,5 +241,155 @@ export const questService = {
 
     if (error) return { data: null, error: extractMessage(error) }
     return { data: data ?? [], error: null }
+  },
+
+  // ─── Creator flow (RLS: "Users can manage their own quests") ──────────────
+
+  /**
+   * List the current user's own quests across all statuses.
+   * Sorted by updated_at DESC. Optional status filter.
+   */
+  async getMyQuests(
+    options: GetMyQuestsOptions = {}
+  ): Promise<ServiceResult<Quest[]>> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: null, error: 'Not authenticated' }
+
+    const { status, limit = 50, offset = 0 } = options
+
+    let query = supabase
+      .from('quests')
+      .select('*')
+      .eq('created_by', user.id)
+      .order('updated_at', { ascending: false })
+
+    if (status) {
+      query = query.eq('status', status)
+    }
+
+    const { data, error } = await query.range(offset, offset + limit - 1)
+
+    if (error) return { data: null, error: extractMessage(error) }
+    return { data: data ?? [], error: null }
+  },
+
+  /**
+   * Fetch one of the current user's own quests (any status), for editing.
+   */
+  async getMyQuestById(id: string): Promise<ServiceResult<Quest>> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: null, error: 'Not authenticated' }
+
+    const { data, error } = await supabase
+      .from('quests')
+      .select('*')
+      .eq('id', id)
+      .eq('created_by', user.id)
+      .single()
+
+    if (error) return { data: null, error: extractMessage(error) }
+    return { data, error: null }
+  },
+
+  /**
+   * Create a quest as a draft owned by the current user.
+   * location is written as EWKT; PostGIS casts it to geography(Point, 4326).
+   */
+  async createQuest(input: CreateQuestInput): Promise<ServiceResult<Quest>> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: null, error: 'Not authenticated' }
+
+    const insertPayload = {
+      organization_id: null,
+      created_by: user.id,
+      slug: questSlug(input.title),
+      title: input.title.trim(),
+      description: input.description?.trim() || null,
+      experience_class: input.experience_class,
+      location_name: input.location_name?.trim() || null,
+      location_point: toEwktPoint(input.location),
+      location_radius_m: null,
+      city: input.city?.trim() || null,
+      country_code: input.country_code?.trim().toUpperCase() || null,
+      tags: input.tags ?? [],
+      is_sponsored: false,
+      sponsor_id: null,
+      media_urls: [],
+      external_url: input.external_url?.trim() || null,
+      status: 'draft' as QuestStatus,
+      expires_at: null,
+      metadata: {},
+    }
+
+    const { data, error } = await supabase
+      .from('quests')
+      .insert(insertPayload as never)
+      .select()
+      .single()
+
+    if (error) return { data: null, error: extractMessage(error) }
+    return { data, error: null }
+  },
+
+  /**
+   * Update basic fields on one of the current user's own quests.
+   */
+  async updateQuest(
+    id: string,
+    updates: UpdateQuestInput
+  ): Promise<ServiceResult<Quest>> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: null, error: 'Not authenticated' }
+
+    const { location, ...rest } = updates
+    const updatePayload: Record<string, unknown> = {
+      ...rest,
+      updated_at: new Date().toISOString(),
+    }
+    if (location) {
+      updatePayload.location_point = toEwktPoint(location)
+    }
+
+    const { data, error } = await supabase
+      .from('quests')
+      .update(updatePayload as never)
+      .eq('id', id)
+      .eq('created_by', user.id)
+      .select()
+      .single()
+
+    if (error) return { data: null, error: extractMessage(error) }
+    return { data, error: null }
+  },
+
+  /**
+   * Transition a quest's lifecycle status (publish / unpublish / archive).
+   * Publishing stamps published_at so it surfaces in nearby/feed ordering.
+   */
+  async setQuestStatus(
+    id: string,
+    status: QuestStatus
+  ): Promise<ServiceResult<Quest>> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: null, error: 'Not authenticated' }
+
+    const updatePayload: Record<string, unknown> = {
+      status,
+      updated_at: new Date().toISOString(),
+    }
+    if (status === 'published') {
+      updatePayload.published_at = new Date().toISOString()
+    }
+
+    const { data, error } = await supabase
+      .from('quests')
+      .update(updatePayload as never)
+      .eq('id', id)
+      .eq('created_by', user.id)
+      .select()
+      .single()
+
+    if (error) return { data: null, error: extractMessage(error) }
+    return { data, error: null }
   },
 }

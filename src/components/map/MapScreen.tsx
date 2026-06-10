@@ -17,6 +17,7 @@ import {
   type RankedQuest,
 } from '../../lib/adventureRadar'
 import type { LatLng, RouteSummary } from './types'
+import { MAPS_API_KEY, MAPS_MAP_ID, FALLBACK_CENTER } from './mapsConfig'
 import { MapErrorBoundary } from './MapErrorBoundary'
 import { QuestClusterer } from './QuestClusterer'
 import { QuestList } from './QuestList'
@@ -25,14 +26,6 @@ import { PlaceSearch } from './PlaceSearch'
 import { DirectionsLayer } from './DirectionsLayer'
 import './maps.css'
 
-const MAPS_API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as
-  | string
-  | undefined
-const MAPS_MAP_ID =
-  (import.meta.env.VITE_GOOGLE_MAPS_MAP_ID as string | undefined) ??
-  'DEMO_MAP_ID'
-
-const FALLBACK_CENTER: LatLng = { lat: 40.4168, lng: -3.7038 }
 const RADIUS_OPTIONS_KM = [1, 2.5, 5, 10, 25]
 const DEFAULT_RADIUS_KM = Number(import.meta.env.VITE_DEFAULT_RADIUS_KM ?? 5)
 

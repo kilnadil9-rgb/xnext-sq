@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react'
+import { lazy, Suspense, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { LoadingState } from './components/ui/LoadingState'
@@ -28,6 +28,13 @@ import { PulsePage } from './pages/dashboard/PulsePage'
 
 // Lazy: keeps the Google Maps JS SDK out of the main bundle
 const MapPage = lazy(() => import('./pages/dashboard/MapPage'))
+const MyQuestsPage = lazy(() => import('./pages/dashboard/MyQuestsPage'))
+const CreateQuestPage = lazy(() => import('./pages/dashboard/CreateQuestPage'))
+const EditQuestPage = lazy(() => import('./pages/dashboard/EditQuestPage'))
+
+const suspense = (node: ReactNode) => (
+  <Suspense fallback={<LoadingState fullScreen />}>{node}</Suspense>
+)
 
 export function App() {
   return (
@@ -54,6 +61,9 @@ export function App() {
               <Route path="/dashboard/settings" element={<SettingsPage />} />
               <Route path="/dashboard/organizations" element={<OrganizationsPage />} />
               <Route path="/dashboard/quests" element={<QuestsPage />} />
+              <Route path="/dashboard/quests/new" element={suspense(<CreateQuestPage />)} />
+              <Route path="/dashboard/quests/mine" element={suspense(<MyQuestsPage />)} />
+              <Route path="/dashboard/quests/:id/edit" element={suspense(<EditQuestPage />)} />
               <Route path="/dashboard/quests/:id" element={<QuestDetailPage />} />
               <Route path="/dashboard/dream-list" element={<DreamListPage />} />
               <Route path="/dashboard/pulse" element={<PulsePage />} />
