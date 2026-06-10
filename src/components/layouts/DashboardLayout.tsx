@@ -44,10 +44,10 @@ export function DashboardLayout() {
         <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Main navigation">
           <ul className="space-y-1">
             <NavItem to="/dashboard" label="Home" icon={HomeIcon} end />
-            <NavItem to="/dashboard/quests" label="Quests" icon={QuestIcon} />
-            <NavItem to="/dashboard/pulse" label="Pulse" icon={PulseIcon} />
-            <NavItem to="/dashboard/organizations" label="Organizations" icon={OrgIcon} />
-            <NavItem to="/dashboard/profile" label="Profile" icon={ProfileIcon} />
+            <NavItem to="/dashboard/map" label="Map" icon={MapIcon} />
+            <NavItem to="/dashboard/quests/mine" label="My Quests" icon={QuestIcon} />
+            <NavItem to="/dashboard/quests/new" label="Create Quest" icon={QuestIcon} />
+            <NavItem to="/dashboard/completed" label="Completed" icon={QuestIcon} />
           </ul>
 
           {/* Admin section — gated by RequireRole in the actual routes */}
@@ -149,30 +149,6 @@ function QuestIcon({ className = iconProps }) {
   )
 }
 
-function PulseIcon({ className = iconProps }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12h3l3-9 3 18 3-9h6" />
-    </svg>
-  )
-}
-
-function OrgIcon({ className = iconProps }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-    </svg>
-  )
-}
-
-function ProfileIcon({ className = iconProps }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-    </svg>
-  )
-}
-
 function UsersIcon({ className = iconProps }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -185,6 +161,15 @@ function AuditIcon({ className = iconProps }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+    </svg>
+  )
+}
+
+function MapIcon({ className = iconProps }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314-11.314z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
   )
 }
