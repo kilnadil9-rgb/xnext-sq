@@ -1,5 +1,7 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { LoadingState } from './components/ui/LoadingState'
 
 // ── Layouts & guards ──────────────────────────────────────────────────────────
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
@@ -19,6 +21,13 @@ import { HomePage } from './pages/dashboard/HomePage'
 import { ProfilePage } from './pages/dashboard/ProfilePage'
 import { SettingsPage } from './pages/dashboard/SettingsPage'
 import { OrganizationsPage } from './pages/dashboard/OrganizationsPage'
+import { QuestsPage } from './pages/dashboard/QuestsPage'
+import { QuestDetailPage } from './pages/dashboard/QuestDetailPage'
+import { DreamListPage } from './pages/dashboard/DreamListPage'
+import { PulsePage } from './pages/dashboard/PulsePage'
+
+// Lazy: keeps the Google Maps JS SDK out of the main bundle
+const MapPage = lazy(() => import('./pages/dashboard/MapPage'))
 
 export function App() {
   return (
@@ -44,6 +53,18 @@ export function App() {
               <Route path="/dashboard/profile" element={<ProfilePage />} />
               <Route path="/dashboard/settings" element={<SettingsPage />} />
               <Route path="/dashboard/organizations" element={<OrganizationsPage />} />
+              <Route path="/dashboard/quests" element={<QuestsPage />} />
+              <Route path="/dashboard/quests/:id" element={<QuestDetailPage />} />
+              <Route path="/dashboard/dream-list" element={<DreamListPage />} />
+              <Route path="/dashboard/pulse" element={<PulsePage />} />
+              <Route
+                path="/dashboard/map"
+                element={
+                  <Suspense fallback={<LoadingState fullScreen />}>
+                    <MapPage />
+                  </Suspense>
+                }
+              />
 
               {/* Catch-all inside dashboard → redirect home */}
               <Route path="/dashboard/*" element={<Navigate to="/dashboard" replace />} />
