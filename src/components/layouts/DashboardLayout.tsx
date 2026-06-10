@@ -48,6 +48,7 @@ export function DashboardLayout() {
             <NavItem to="/dashboard/quests/mine" label="My Quests" icon={QuestIcon} />
             <NavItem to="/dashboard/quests/new" label="Create Quest" icon={QuestIcon} />
             <NavItem to="/dashboard/completed" label="Completed" icon={QuestIcon} />
+            <NavItem to="/dashboard/preferences" label="Preferences" icon={UsersIcon} />
           </ul>
 
           {/* Admin section — gated by RequireRole in the actual routes */}
