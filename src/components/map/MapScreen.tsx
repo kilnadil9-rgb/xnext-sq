@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   APIProvider,
   AdvancedMarker,
@@ -10,6 +10,7 @@ import {
 import { useUserLocation } from '../../hooks/useUserLocation'
 import { useNearbyQuests } from '../../hooks/useNearbyQuests'
 import { usePulseQuestIds } from '../../hooks/usePulseQuestIds'
+import { useQuestPreferences } from '../../hooks/useQuestPreferences'
 import { formatDistance } from '../../lib/distance'
 import {
   rankQuests,
@@ -26,7 +27,14 @@ import { PlaceSearch } from './PlaceSearch'
 import { DirectionsLayer } from './DirectionsLayer'
 import './maps.css'
 
-const RADIUS_OPTIONS_KM = [1, 2.5, 5, 10, 25]
+const RADIUS_OPTIONS_KM = [1, 2.5, 5, 10, 25, 50]
+
+/** Snap an arbitrary preferred distance onto the nearest radius option. */
+function nearestRadiusOption(km: number): number {
+  return RADIUS_OPTIONS_KM.reduce((best, r) =>
+    Math.abs(r - km) < Math.abs(best - km) ? r : best,
+  )
+}
 const DEFAULT_RADIUS_KM = Number(import.meta.env.VITE_DEFAULT_RADIUS_KM ?? 5)
 
 export default function MapScreen() {
@@ -64,6 +72,7 @@ function RadarScreen() {
 
   const [cameraCenter, setCameraCenter] = useState<LatLng>(FALLBACK_CENTER)
   const [radiusKm, setRadiusKm] = useState(DEFAULT_RADIUS_KM)
+  const [radiusTouched, setRadiusTouched] = useState(false)
   const [sortMode, setSortMode] = useState<RadarSortMode>('relevance')
   const [refreshKey, setRefreshKey] = useState(0)
   const [selectedQuest, setSelectedQuest] = useState<RankedQuest | null>(null)
@@ -82,9 +91,25 @@ function RadarScreen() {
   // Pulse boost is optional sugar; empty set when unavailable.
   const pulseQuestIds = usePulseQuestIds(mapsReady)
 
+  // User preferences: seed the default radius (until the user touches the
+  // control) and boost preferred experience classes in relevance ranking.
+  const { preferences } = useQuestPreferences(mapsReady)
+
+  useEffect(() => {
+    if (preferences && !radiusTouched) {
+      setRadiusKm(nearestRadiusOption(Number(preferences.max_distance_km)))
+    }
+  }, [preferences, radiusTouched])
+
   const rankedQuests = useMemo(
-    () => rankQuests(quests, { radiusKm, sortMode, pulseQuestIds }),
-    [quests, radiusKm, sortMode, pulseQuestIds],
+    () =>
+      rankQuests(quests, {
+        radiusKm,
+        sortMode,
+        pulseQuestIds,
+        preferredClasses: preferences?.preferred_classes,
+      }),
+    [quests, radiusKm, sortMode, pulseQuestIds, preferences],
   )
 
   const handleCameraChanged = useCallback((ev: MapCameraChangedEvent) => {
@@ -169,7 +194,10 @@ function RadarScreen() {
             className="radius-select"
             aria-label="Search radius"
             value={radiusKm}
-            onChange={(e) => setRadiusKm(Number(e.target.value))}
+            onChange={(e) => {
+              setRadiusTouched(true)
+              setRadiusKm(Number(e.target.value))
+            }}
           >
             {RADIUS_OPTIONS_KM.map((r) => (
               <option key={r} value={r}>

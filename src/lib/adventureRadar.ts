@@ -26,6 +26,12 @@ export interface RankOptions {
   sortMode: RadarSortMode
   /** Quest ids with active pulse alerts (optional boost + badge) */
   pulseQuestIds?: ReadonlySet<string>
+  /**
+   * The user's preferred experience classes (user_quest_preferences).
+   * When non-empty, matching quests get a relevance boost — non-matching
+   * quests are never hidden, only ranked lower.
+   */
+  preferredClasses?: ReadonlyArray<string>
   /** Injectable clock for tests */
   now?: number
 }
@@ -35,6 +41,7 @@ const WEIGHTS = {
   sq: 0.35,
   recency: 0.1,
   pulse: 0.1,
+  preference: 0.15,
 } as const
 
 const RECENCY_WINDOW_DAYS = 30
@@ -61,18 +68,29 @@ export function recencyFactor(publishedAt: string | null, now: number): number {
  */
 export function rankQuests(
   quests: NearbyQuest[],
-  { radiusKm, sortMode, pulseQuestIds, now = Date.now() }: RankOptions,
+  {
+    radiusKm,
+    sortMode,
+    pulseQuestIds,
+    preferredClasses,
+    now = Date.now(),
+  }: RankOptions,
 ): RankedQuest[] {
   const maxSq = quests.reduce(
     (max, q) => Math.max(max, q.sq_score ?? 0),
     0,
   )
+  const prefs =
+    preferredClasses && preferredClasses.length > 0
+      ? new Set(preferredClasses)
+      : null
 
   const scored: RankedQuest[] = quests.map((q) => {
     const hasPulse = pulseQuestIds?.has(q.id) ?? false
     const proximity = proximityFactor(q.distance_km, radiusKm)
     const sq = maxSq > 0 ? (q.sq_score ?? 0) / maxSq : 0
     const recency = recencyFactor(q.published_at, now)
+    const preferred = prefs?.has(q.experience_class) ?? false
 
     return {
       ...q,
@@ -81,7 +99,8 @@ export function rankQuests(
         WEIGHTS.proximity * proximity +
         WEIGHTS.sq * sq +
         WEIGHTS.recency * recency +
-        WEIGHTS.pulse * (hasPulse ? 1 : 0),
+        WEIGHTS.pulse * (hasPulse ? 1 : 0) +
+        WEIGHTS.preference * (preferred ? 1 : 0),
     }
   })
 

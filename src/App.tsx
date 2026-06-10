@@ -34,6 +34,7 @@ const EditQuestPage = lazy(() => import('./pages/dashboard/EditQuestPage'))
 const CompletedQuestsPage = lazy(
   () => import('./pages/dashboard/CompletedQuestsPage'),
 )
+const PreferencesPage = lazy(() => import('./pages/dashboard/PreferencesPage'))
 
 const suspense = (node: ReactNode) => (
   <Suspense fallback={<LoadingState fullScreen />}>{node}</Suspense>
@@ -70,6 +71,7 @@ export function App() {
               <Route path="/dashboard/quests/:id" element={<QuestDetailPage />} />
               <Route path="/dashboard/dream-list" element={<DreamListPage />} />
               <Route path="/dashboard/completed" element={suspense(<CompletedQuestsPage />)} />
+              <Route path="/dashboard/preferences" element={suspense(<PreferencesPage />)} />
               <Route path="/dashboard/pulse" element={<PulsePage />} />
               <Route
                 path="/dashboard/map"
