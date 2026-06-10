@@ -277,6 +277,12 @@
   opacity: 0.6;
 }
 
+.quest-sheet__actions .quest-sheet__done {
+  background: #d1fae5;
+  color: #065f46;
+  cursor: default;
+}
+
 /* ── Radar list ────────────────────────────────────────────────────── */
 
 .radar-list {

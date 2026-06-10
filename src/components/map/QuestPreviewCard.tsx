@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { dreamListService } from '../../services/dreamListService'
+import { questCompletionService } from '../../services/questCompletionService'
 import { formatDistance } from '../../lib/distance'
 import type { RankedQuest } from '../../lib/adventureRadar'
 import type { RouteSummary } from './types'
 import { googleMapsDirectionsUrl } from './DirectionsLayer'
 
 type SaveState = 'checking' | 'not_saved' | 'saving' | 'saved'
+type CompletionState = 'checking' | 'not_done' | 'completing' | 'done'
 
 interface Props {
   quest: RankedQuest
@@ -26,10 +28,13 @@ export function QuestPreviewCard({
 }: Props) {
   const [saveState, setSaveState] = useState<SaveState>('checking')
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [completionState, setCompletionState] =
+    useState<CompletionState>('checking')
 
   useEffect(() => {
     let cancelled = false
     setSaveState('checking')
+    setCompletionState('checking')
     setSaveError(null)
 
     dreamListService.getDreamListItemByQuestId(quest.id).then((result) => {
@@ -42,10 +47,29 @@ export function QuestPreviewCard({
       setSaveState(result.data ? 'saved' : 'not_saved')
     })
 
+    questCompletionService.getCompletionByQuestId(quest.id).then((result) => {
+      if (cancelled) return
+      setCompletionState(result.data ? 'done' : 'not_done')
+    })
+
     return () => {
       cancelled = true
     }
   }, [quest.id])
+
+  const handleComplete = async () => {
+    setCompletionState('completing')
+    setSaveError(null)
+    const result = await questCompletionService.completeQuest(quest.id, {
+      sqScoreAtCompletion: quest.sq_score,
+    })
+    if (result.error) {
+      setCompletionState('not_done')
+      setSaveError(result.error)
+      return
+    }
+    setCompletionState('done')
+  }
 
   const handleSave = async () => {
     setSaveState('saving')
@@ -117,6 +141,26 @@ export function QuestPreviewCard({
         <Link to={`/dashboard/quests/${quest.id}`} className="quest-sheet__link">
           Details
         </Link>
+      </div>
+      <div className="quest-sheet__actions">
+        <button
+          type="button"
+          className={
+            completionState === 'done' ? 'quest-sheet__done' : undefined
+          }
+          disabled={
+            completionState === 'checking' || completionState === 'completing'
+          }
+          onClick={completionState === 'done' ? undefined : handleComplete}
+        >
+          {completionState === 'done'
+            ? '🏆 Completed'
+            : completionState === 'completing'
+              ? 'Completing…'
+              : completionState === 'checking'
+                ? '…'
+                : 'Mark complete'}
+        </button>
       </div>
       <div className="quest-sheet__actions">
         <button type="button" disabled={routeDisabled} onClick={onShowRoute}>
