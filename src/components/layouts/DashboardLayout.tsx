@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { Outlet, NavLink } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
 import { UserMenu } from '../ui/UserMenu'
 import { OrganizationSwitcher } from '../ui/OrganizationSwitcher'
+import { useAuth } from '../../hooks/useAuth'
 
 /**
  * Primary app shell for authenticated users.
@@ -12,6 +13,16 @@ import { OrganizationSwitcher } from '../ui/OrganizationSwitcher'
 export function DashboardLayout() {
   const [activeOrgId, setActiveOrgId] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { profile } = useAuth()
+  const navigate = useNavigate()
+
+  // Consent gate: if profile loaded and no privacy acceptance recorded, force to consent screen.
+  // This implements the first-launch consent flow (Deliverable 3) without showing dashboard chrome.
+  useEffect(() => {
+    if (profile && !profile.privacy_policy_accepted_at) {
+      navigate('/consent', { replace: true })
+    }
+  }, [profile, navigate])
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -46,6 +57,8 @@ export function DashboardLayout() {
             <NavItem to="/dashboard" label="Home" icon={HomeIcon} end />
             <NavItem to="/dashboard/map" label="Map" icon={MapIcon} />
             <NavItem to="/dashboard/quests/mine" label="My Quests" icon={QuestIcon} />
+            <NavItem to="/dashboard/dream-list" label="Dream List" icon={DreamListIcon} />
+            <NavItem to="/dashboard/pulse" label="Pulse" icon={PulseIcon} />
             <NavItem to="/dashboard/quests/new" label="Create Quest" icon={QuestIcon} />
             <NavItem to="/dashboard/completed" label="Completed" icon={QuestIcon} />
             <NavItem to="/dashboard/preferences" label="Preferences" icon={UsersIcon} />
@@ -92,6 +105,21 @@ export function DashboardLayout() {
         <main className="flex-1 overflow-y-auto p-4 lg:p-6">
           <Outlet />
         </main>
+
+        {/* Trust Center footer (Deliverable 7) */}
+        <footer className="border-t border-border bg-card px-4 py-3 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <Link to="/privacy-policy" className="hover:text-foreground hover:underline">Privacy Policy</Link>
+            <Link to="/terms-of-service" className="hover:text-foreground hover:underline">Terms of Service</Link>
+            <Link to="/community-guidelines" className="hover:text-foreground hover:underline">Community Guidelines</Link>
+            <Link to="/data-requests" className="hover:text-foreground hover:underline">Data Requests</Link>
+            <a href="mailto:support@xnext.example" className="hover:text-foreground hover:underline">Contact Support</a>
+            <Link to="/philosophy" className="hover:text-foreground hover:underline">Product Philosophy</Link>
+          </div>
+          <p className="mt-1 text-[11px] opacity-80">
+            Your memories belong to you. Your adventures belong to you. You can export or delete your data at any time.
+          </p>
+        </footer>
       </div>
     </div>
   )
@@ -146,6 +174,22 @@ function QuestIcon({ className = iconProps }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-1.447-.894L15 9m0 8V9m0 0L9 7" />
+    </svg>
+  )
+}
+
+function DreamListIcon({ className = iconProps }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+    </svg>
+  )
+}
+
+function PulseIcon({ className = iconProps }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12h3l3-9 3 18 3-9h6" />
     </svg>
   )
 }
