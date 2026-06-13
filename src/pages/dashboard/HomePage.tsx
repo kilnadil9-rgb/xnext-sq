@@ -21,8 +21,10 @@ import type { LatLng } from '../../components/map/types'
 import { MAPS_API_KEY, FALLBACK_CENTER } from '../../components/map/mapsConfig'
 
 /**
- * Dashboard home — real data previews for Active Pulse (top 3), Saved Dream List (top 3 saved),
+ * Dashboard home — map-background Today experience (world as homepage).
+ * Real data previews for Active Pulse (top 3), Saved Dream List (top 3 saved),
  * and Discover Quests (top 3 published). Partial section failures are tolerated.
+ * Re-applied / restored for live deployment.
  */
 export function HomePage() {
   // Preview data (top 3 from each source)
