@@ -57,7 +57,7 @@ export const auditService = {
     newData,
     metadata,
   }: LogAuditEventParams): Promise<ServiceResult> {
-    const { error } = await supabase.rpc('log_audit_event', {
+    const { error } = await (supabase.rpc as any)('log_audit_event', {
       p_table_name: tableName,
       p_record_id: recordId,
       p_action: action,

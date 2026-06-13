@@ -53,7 +53,7 @@ export const rbacService = {
    * so the check is always authoritative and never gameable from the client.
    */
   async hasRole(roleName: AppRole): Promise<boolean> {
-    const { data, error } = await supabase.rpc('has_role', { role_name: roleName })
+    const { data, error } = await (supabase.rpc as any)('has_role', { role_name: roleName })
     if (error) return false
     return data === true
   },
@@ -63,7 +63,7 @@ export const rbacService = {
    * Delegates to the `public.has_permission()` DB function.
    */
   async hasPermission(permissionName: AppPermission): Promise<boolean> {
-    const { data, error } = await supabase.rpc('has_permission', {
+    const { data, error } = await (supabase.rpc as any)('has_permission', {
       permission_name: permissionName,
     })
     if (error) return false

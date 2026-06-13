@@ -42,7 +42,7 @@ export const profileService = {
   async updateProfile(userId: string, updates: ProfileUpdate): Promise<ServiceResult<Profile>> {
     const { data, error } = await supabase
       .from('profiles')
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update({ ...updates, updated_at: new Date().toISOString() } as never)
       .eq('id', userId)
       .select()
       .single()
@@ -74,7 +74,7 @@ export const profileService = {
     // Persist the new URL on the profile row
     const { error: updateError } = await supabase
       .from('profiles')
-      .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() })
+      .update({ avatar_url: avatarUrl, updated_at: new Date().toISOString() } as never)
       .eq('id', userId)
 
     if (updateError) return { data: null, error: extractMessage(updateError) }

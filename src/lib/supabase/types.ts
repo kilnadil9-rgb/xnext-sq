@@ -35,6 +35,12 @@ export interface Profile {
   bio: string | null
   website: string | null
   onboarding_completed: boolean
+  privacy_policy_accepted_at: string | null
+  privacy_policy_version: string | null
+  terms_accepted_at: string | null
+  terms_version: string | null
+  data_deletion_requested_at: string | null
+  data_deletion_scheduled_for: string | null
   created_at: string
   updated_at: string
 }
@@ -333,7 +339,21 @@ export interface UserQuestPreference {
 // ─── Insert types (omit server-generated fields) ──────────────────────────────
 
 export type ProfileUpdate = Partial<
-  Pick<Profile, 'full_name' | 'avatar_url' | 'username' | 'bio' | 'website' | 'onboarding_completed'>
+  Pick<
+    Profile,
+    | 'full_name'
+    | 'avatar_url'
+    | 'username'
+    | 'bio'
+    | 'website'
+    | 'onboarding_completed'
+    | 'privacy_policy_accepted_at'
+    | 'privacy_policy_version'
+    | 'terms_accepted_at'
+    | 'terms_version'
+    | 'data_deletion_requested_at'
+    | 'data_deletion_scheduled_for'
+  >
 >
 
 export type OrganizationInsert = Pick<Organization, 'name' | 'slug'> &
@@ -536,6 +556,10 @@ export interface Database {
           p_new_data?: Record<string, unknown>
           p_metadata?: Record<string, unknown>
         }
+        Returns: void
+      }
+      anonymize_my_audit_logs: {
+        Args: Record<string, never>
         Returns: void
       }
       find_quests_nearby: {

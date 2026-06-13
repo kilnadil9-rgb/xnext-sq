@@ -1,11 +1,9 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { authService } from '../../services/authService'
 import { AuthLayout } from '../../components/layouts/AuthLayout'
 
 export function SignupPage() {
-  const navigate = useNavigate()
-
   const [fullName, setFullName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

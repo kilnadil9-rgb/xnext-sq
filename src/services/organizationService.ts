@@ -44,7 +44,7 @@ export const organizationService = {
     params: OrganizationInsert
   ): Promise<ServiceResult<Organization>> {
     // Call the DB function which creates the org + owner member in a transaction
-    const { data: orgId, error: fnError } = await supabase.rpc('create_organization', {
+    const { data: orgId, error: fnError } = await (supabase.rpc as any)('create_organization', {
       org_name: params.name,
       org_slug: params.slug,
     })
@@ -68,7 +68,7 @@ export const organizationService = {
           logo_url: params.logo_url,
           description: params.description,
           website: params.website,
-        })
+        } as never)
         .eq('id', orgId)
         .select()
         .single()
@@ -120,7 +120,7 @@ export const organizationService = {
   ): Promise<ServiceResult<Organization>> {
     const { data, error } = await supabase
       .from('organizations')
-      .update({ ...updates, updated_at: new Date().toISOString() })
+      .update({ ...updates, updated_at: new Date().toISOString() } as never)
       .eq('id', orgId)
       .select()
       .single()
@@ -172,7 +172,7 @@ export const organizationService = {
         role,
         expires_at: expiresAt.toISOString(),
         // invited_by is set server-side via auth.uid() default
-      })
+      } as any)
       .select()
       .single()
 
@@ -187,8 +187,8 @@ export const organizationService = {
    */
   async acceptInvitation(token: string): Promise<ServiceResult<OrganizationMember>> {
     // 1. Find the invitation
-    const { data: invitation, error: findError } = await supabase
-      .from('organization_invitations')
+    const { data: invitation, error: findError } = await (supabase
+      .from('organization_invitations') as any)
       .select('*')
       .eq('token', token)
       .eq('status', 'pending')
@@ -202,7 +202,7 @@ export const organizationService = {
     // 2. Mark as accepted
     const { error: acceptError } = await supabase
       .from('organization_invitations')
-      .update({ status: 'accepted' })
+      .update({ status: 'accepted' } as never)
       .eq('id', invitation.id)
 
     if (acceptError) return { data: null, error: extractMessage(acceptError) }
@@ -215,7 +215,7 @@ export const organizationService = {
           organization_id: invitation.organization_id,
           // user_id resolved from RLS/auth.uid() on the server
           role: invitation.role,
-        },
+        } as never,
         { onConflict: 'organization_id,user_id' }
       )
       .select()
