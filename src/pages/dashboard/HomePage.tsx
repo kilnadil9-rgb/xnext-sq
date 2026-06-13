@@ -8,6 +8,18 @@ import type { PulseAlert, DreamListItemWithQuest, Quest } from '../../lib/supaba
 import { LoadingState } from '../../components/ui/LoadingState'
 import { ErrorState } from '../../components/ui/ErrorState'
 
+// Map background (reused patterns from MapScreen / hooks; only for visual world layer + real radar count)
+import {
+  APIProvider,
+  AdvancedMarker,
+  Map,
+} from '@vis.gl/react-google-maps'
+import { useUserLocation } from '../../hooks/useUserLocation'
+import { useNearbyQuests } from '../../hooks/useNearbyQuests'
+import { MapErrorBoundary } from '../../components/map/MapErrorBoundary'
+import type { LatLng } from '../../components/map/types'
+import { MAPS_API_KEY, FALLBACK_CENTER } from '../../components/map/mapsConfig'
+
 /**
  * Dashboard home — real data previews for Active Pulse (top 3), Saved Dream List (top 3 saved),
  * and Discover Quests (top 3 published). Partial section failures are tolerated.
@@ -25,6 +37,41 @@ export function HomePage() {
     dream?: string
     quests?: string
   }>({})
+
+  // Map hero + Adventure Radar status (real data only)
+  const {
+    position: userPosition,
+    status: locationStatus,
+    error: locationError,
+    request: requestLocation,
+  } = useUserLocation()
+
+  const [heroCenter, setHeroCenter] = useState<LatLng>(FALLBACK_CENTER)
+  const HERO_RADIUS_KM = 25
+
+  // Real nearby quests for radar count + subtle bg markers (via existing RPC)
+  const { quests: radarQuests } = useNearbyQuests(
+    heroCenter,
+    { radiusKm: HERO_RADIUS_KM, limit: 30, enabled: !!MAPS_API_KEY }
+  )
+
+  // Keep hero map centered on user when available (prefer real location)
+  useEffect(() => {
+    if (userPosition) {
+      setHeroCenter(userPosition)
+    }
+  }, [userPosition])
+
+  const locationLabel =
+    locationStatus === 'active'
+      ? 'Using your location'
+      : locationStatus === 'locating'
+      ? 'Locating…'
+      : locationStatus === 'denied'
+      ? 'Location permission denied'
+      : locationStatus === 'unavailable'
+      ? 'Geolocation unavailable'
+      : 'Safe fallback (map view)'
 
   const loadPreviews = useCallback(async () => {
     setLoading(true)
@@ -72,149 +119,248 @@ export function HomePage() {
   }, [loadPreviews])
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">
-          Today
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          What might happen next?
-        </p>
-      </div>
+    <div className="min-h-screen bg-background text-foreground">
+      {/* Map hero background (world layer) + floating Today overlay */}
+      <div className="relative h-[52vh] min-h-[300px] w-full overflow-hidden border-b border-border bg-muted">
+        {MAPS_API_KEY ? (
+          <MapErrorBoundary>
+            <APIProvider apiKey={MAPS_API_KEY} libraries={['marker']}>
+              <Map
+                center={heroCenter}
+                zoom={12}
+                className="h-full w-full"
+                gestureHandling="cooperative"
+                disableDefaultUI
+                mapId={undefined}
+              >
+                {/* Subtle real markers (capped) to make the world feel alive — no fakes */}
+                {radarQuests.slice(0, 5).map((q) =>
+                  q.lat != null && q.lng != null ? (
+                    <AdvancedMarker
+                      key={q.id}
+                      position={{ lat: q.lat, lng: q.lng }}
+                    />
+                  ) : null
+                )}
+                {/* User position marker when available (real) */}
+                {userPosition && (
+                  <AdvancedMarker position={userPosition} />
+                )}
+              </Map>
+            </APIProvider>
+          </MapErrorBoundary>
+        ) : (
+          <div className="h-full w-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 text-center p-6 text-white/80">
+            <div className="text-lg font-semibold tracking-tight">World layer</div>
+            <p className="mt-1 max-w-xs text-sm opacity-70">
+              Configure Google Maps key to see the living map background.
+              Location still powers your personal discovery.
+            </p>
+          </div>
+        )}
 
-      {loading && <LoadingState message="Loading your previews…" />}
+        {/* Floating glass overlay — Today experience + core loop actions */}
+        <div className="absolute inset-x-3 bottom-3 z-10 md:inset-x-6 md:bottom-6 lg:left-6 lg:right-auto lg:w-[400px]">
+          <div className="rounded-2xl border border-white/15 bg-black/75 backdrop-blur-2xl p-5 text-white shadow-2xl">
+            <div>
+              <div className="text-3xl font-bold tracking-tighter">Today</div>
+              <div className="text-sm -mt-1 opacity-80">What might happen next?</div>
+            </div>
 
-      {!loading && error && (
-        <ErrorState
-          message={error}
-          onRetry={loadPreviews}
-        />
-      )}
+            {/* Compact real Adventure Radar status card */}
+            <div className="mt-3 rounded-xl bg-white/10 p-3 text-sm">
+              <div className="flex items-baseline justify-between">
+                <span className="font-medium tracking-wide">Adventure Radar</span>
+                <span className="font-mono text-xs opacity-75">{HERO_RADIUS_KM} km</span>
+              </div>
+              <div className="mt-1 text-lg font-semibold tabular-nums">
+                {radarQuests.length} real quests found
+              </div>
+              <div className="mt-0.5 text-[11px] opacity-75">
+                {locationLabel}
+                {locationError ? ` • ${locationError}` : ''}
+              </div>
 
-      {!loading && !error && (
-        <div className="space-y-8">
-          {/* Active Pulse Preview */}
-          <section>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-foreground">Pulse Alerts</h2>
+              {(locationStatus !== 'active' && locationStatus !== 'locating') && (
+                <button
+                  onClick={requestLocation}
+                  className="mt-2 inline-block rounded-md border border-white/30 px-2.5 py-0.5 text-[11px] hover:bg-white/10 active:bg-white/20"
+                >
+                  Enable location for personalized view
+                </button>
+              )}
+            </div>
+
+            {/* Quick actions — Discover → Save → Pulse → ... loop */}
+            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+              <Link
+                to="/dashboard/map"
+                className="rounded-lg bg-white px-3 py-2 text-center font-semibold text-black shadow hover:bg-white/95 active:scale-[0.985]"
+              >
+                Explore Map
+              </Link>
+              <Link
+                to="/dashboard/preferences"
+                className="rounded-lg border border-white/30 px-3 py-2 text-center font-medium hover:bg-white/10"
+              >
+                Set Preferences
+              </Link>
               <Link
                 to="/dashboard/pulse"
-                className="text-xs font-medium text-primary hover:underline"
+                className="rounded-lg border border-white/30 px-3 py-2 text-center font-medium hover:bg-white/10"
               >
-                View all →
+                View Pulse
               </Link>
-            </div>
-
-            {sectionErrors.pulse ? (
-              <div className="rounded-xl border border-border bg-card p-4 text-sm">
-                <span className="text-destructive">Failed to load pulse alerts.</span>{' '}
-                <button
-                  onClick={loadPreviews}
-                  className="text-primary underline hover:no-underline"
-                >
-                  Retry
-                </button>
-              </div>
-            ) : pulseAlerts.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
-                <p className="text-sm font-medium text-foreground">No active pulse alerts</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Time-sensitive opportunities matching your preferences will appear here.
-                </p>
-              </div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {pulseAlerts.map((alert) => (
-                  <ActivePulsePreviewCard key={alert.id} alert={alert} />
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* Saved Dream List Preview */}
-          <section>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-foreground">Dream List Highlights</h2>
               <Link
                 to="/dashboard/dream-list"
-                className="text-xs font-medium text-primary hover:underline"
+                className="rounded-lg border border-white/30 px-3 py-2 text-center font-medium hover:bg-white/10"
               >
-                View all →
+                Dream List
               </Link>
             </div>
 
-            {sectionErrors.dream ? (
-              <div className="rounded-xl border border-border bg-card p-4 text-sm">
-                <span className="text-destructive">Failed to load dream list.</span>{' '}
-                <button
-                  onClick={loadPreviews}
-                  className="text-primary underline hover:no-underline"
-                >
-                  Retry
-                </button>
-              </div>
-            ) : dreamItems.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
-                <p className="text-sm font-medium text-foreground">No saved items yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Save experiences to your Dream List to track what matters.
-                </p>
+            <div className="mt-2 text-[10px] opacity-60 text-center">
+              Map = world • Pulse = alerts • Dream List = intent • Opportunities = discover
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Below-hero content: real service previews (preserved exactly) + improved honest empty states */}
+      <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
+        {loading && <LoadingState message="Loading your previews…" />}
+
+        {!loading && error && (
+          <ErrorState
+            message={error}
+            onRetry={loadPreviews}
+          />
+        )}
+
+        {!loading && !error && (
+          <div className="space-y-8">
+            {/* Active Pulse Preview — time-sensitive part of the loop */}
+            <section>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-foreground">Pulse Alerts</h2>
                 <Link
-                  to="/dashboard/quests"
-                  className="mt-4 inline-block rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                  to="/dashboard/pulse"
+                  className="text-xs font-medium text-primary hover:underline"
                 >
-                  Explore opportunities
+                  View all →
                 </Link>
               </div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {dreamItems.map((item) => (
-                  <SavedDreamPreviewCard key={item.id} item={item} />
-                ))}
-              </div>
-            )}
-          </section>
 
-          {/* Discover Quests Preview */}
-          <section>
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-foreground">Opportunities Today</h2>
-              <Link
-                to="/dashboard/quests"
-                className="text-xs font-medium text-primary hover:underline"
-              >
-                View all →
-              </Link>
-            </div>
+              {sectionErrors.pulse ? (
+                <div className="rounded-xl border border-border bg-card p-4 text-sm">
+                  <span className="text-destructive">Failed to load pulse alerts.</span>{' '}
+                  <button
+                    onClick={loadPreviews}
+                    className="text-primary underline hover:no-underline"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : pulseAlerts.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
+                  <p className="text-sm font-medium text-foreground">Your radar is quiet right now.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Time-sensitive opportunities matching your preferences will appear here.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {pulseAlerts.map((alert) => (
+                    <ActivePulsePreviewCard key={alert.id} alert={alert} />
+                  ))}
+                </div>
+              )}
+            </section>
 
-            {sectionErrors.quests ? (
-              <div className="rounded-xl border border-border bg-card p-4 text-sm">
-                <span className="text-destructive">Failed to load quests.</span>{' '}
-                <button
-                  onClick={loadPreviews}
-                  className="text-primary underline hover:no-underline"
+            {/* Saved Dream List Preview — save/intent part of the loop */}
+            <section>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-foreground">Dream List Highlights</h2>
+                <Link
+                  to="/dashboard/dream-list"
+                  className="text-xs font-medium text-primary hover:underline"
                 >
-                  Retry
-                </button>
+                  View all →
+                </Link>
               </div>
-            ) : discoverQuests.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
-                <p className="text-sm font-medium text-foreground">No opportunities today yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Check back soon or explore the map for nearby experiences.
-                </p>
+
+              {sectionErrors.dream ? (
+                <div className="rounded-xl border border-border bg-card p-4 text-sm">
+                  <span className="text-destructive">Failed to load dream list.</span>{' '}
+                  <button
+                    onClick={loadPreviews}
+                    className="text-primary underline hover:no-underline"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : dreamItems.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
+                  <p className="text-sm font-medium text-foreground">Save experiences to your Dream List and XNEXT will track what matters.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Your saved intent powers future Pulse alerts and recommendations.
+                  </p>
+                  <Link
+                    to="/dashboard/quests"
+                    className="mt-4 inline-block rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
+                  >
+                    Explore opportunities
+                  </Link>
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {dreamItems.map((item) => (
+                    <SavedDreamPreviewCard key={item.id} item={item} />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            {/* Discover / Opportunities Preview — discover/experience part of the loop */}
+            <section>
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-base font-semibold text-foreground">Opportunities Today</h2>
+                <Link
+                  to="/dashboard/quests"
+                  className="text-xs font-medium text-primary hover:underline"
+                >
+                  View all →
+                </Link>
               </div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {discoverQuests.map((quest) => (
-                  <DiscoverQuestPreviewCard key={quest.id} quest={quest} />
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
-      )}
+
+              {sectionErrors.quests ? (
+                <div className="rounded-xl border border-border bg-card p-4 text-sm">
+                  <span className="text-destructive">Failed to load quests.</span>{' '}
+                  <button
+                    onClick={loadPreviews}
+                    className="text-primary underline hover:no-underline"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : discoverQuests.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
+                  <p className="text-sm font-medium text-foreground">Turn on location or widen your radius to discover more.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Real experiences from the world around you will surface here when available.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {discoverQuests.map((quest) => (
+                    <DiscoverQuestPreviewCard key={quest.id} quest={quest} />
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
