@@ -90,6 +90,37 @@ body {
   margin: 0;
 }
 
+/* ── XNEXT Phase 1.6 — Adventure animations ─────────────────────────────── */
+
+@keyframes glow-breathe {
+  0%, 100% {
+    box-shadow: 0 0 14px rgba(249, 115, 22, 0.55), 0 0 28px rgba(249, 115, 22, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 22px rgba(249, 115, 22, 0.85), 0 0 48px rgba(249, 115, 22, 0.45), 0 0 72px rgba(253, 224, 71, 0.15);
+  }
+}
+
+@keyframes pulse-wave {
+  0% { transform: scale(1); opacity: 0.7; }
+  70% { transform: scale(1.35); opacity: 0; }
+  100% { transform: scale(1.35); opacity: 0; }
+}
+
+.animate-glow-breathe {
+  animation: glow-breathe 2.4s ease-in-out infinite;
+}
+
+.animate-pulse-wave::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 2px solid rgba(249, 115, 22, 0.6);
+  animation: pulse-wave 2s ease-out infinite;
+  pointer-events: none;
+}
+
 h1,
 h2 {
   font-family: var(--heading);
