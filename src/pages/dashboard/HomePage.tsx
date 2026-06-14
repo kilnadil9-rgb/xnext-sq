@@ -54,12 +54,54 @@ export function HomePage() {
     { radiusKm: HERO_RADIUS_KM, limit: 30, enabled: !!MAPS_API_KEY }
   )
 
-  // Keep hero map centered on user when available (prefer real location)
+  const [hasAutoCentered, setHasAutoCentered] = useState(false)
+  const [currentRadarIndex, setCurrentRadarIndex] = useState(0)
+
+  // Auto-request location on first load (same logic as MapScreen) for real coords.
   useEffect(() => {
-    if (userPosition) {
-      setHeroCenter(userPosition)
+    if (locationStatus === 'idle') {
+      if (import.meta.env.DEV) {
+        console.log('[HomePage] First load — requesting user location for centering and Radar query')
+      }
+      requestLocation()
     }
-  }, [userPosition])
+  }, [locationStatus, requestLocation])
+
+  // Keep hero map centered on user when available (prefer real location). Guard to auto-center only once on grant.
+  useEffect(() => {
+    if (userPosition && locationStatus === 'active' && !hasAutoCentered) {
+      if (import.meta.env.DEV) {
+        console.log('[HomePage] Real user location acquired — centering map and Radar on user coords', userPosition)
+      }
+      setHeroCenter(userPosition)
+      setHasAutoCentered(true)
+    }
+  }, [userPosition, locationStatus, hasAutoCentered])
+
+  // Clamp index if list changes (e.g. after location grant)
+  useEffect(() => {
+    if (currentRadarIndex >= radarQuests.length && radarQuests.length > 0) {
+      setCurrentRadarIndex(0)
+    }
+  }, [radarQuests.length, currentRadarIndex])
+
+  // Listen for unified NEXT from bottom nav (same as MapScreen) so bottom NEXT works on Home too.
+  // Cycles the radar experience, pans map to it, updates the visible card.
+  useEffect(() => {
+    const handler = () => {
+      if (radarQuests.length > 0) {
+        const nextIndex = (currentRadarIndex + 1) % radarQuests.length
+        setCurrentRadarIndex(nextIndex)
+        const nextQ = radarQuests[nextIndex]
+        setHeroCenter({ lat: nextQ.lat, lng: nextQ.lng })
+        if (import.meta.env.DEV) {
+          console.log('[HomePage NEXT] cycled to:', nextQ.title)
+        }
+      }
+    }
+    window.addEventListener('xnext-next', handler)
+    return () => window.removeEventListener('xnext-next', handler)
+  }, [currentRadarIndex, radarQuests])
 
   const locationLabel =
     locationStatus === 'active'
@@ -118,9 +160,9 @@ export function HomePage() {
   }, [loadPreviews])
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
-      {/* Map hero background (world layer) — taller for visibility at all times */}
-      <div className="relative h-[65vh] min-h-[340px] w-full overflow-hidden border-b border-border bg-muted">
+    <div className="relative h-screen overflow-hidden bg-background text-foreground">
+      {/* Full map background (world layer) — always visible, no partial hero */}
+      <div className="absolute inset-0 overflow-hidden bg-muted">
         {MAPS_API_KEY ? (
           <MapErrorBoundary>
             <APIProvider apiKey={MAPS_API_KEY} libraries={['marker']}>
@@ -166,18 +208,36 @@ export function HomePage() {
               <div className="text-sm -mt-1 opacity-80">What might happen next?</div>
             </div>
 
-            {/* Cleaner, more readable Adventure Radar card (orange accent, tighter) */}
+            {/* Cleaner Adventure Radar card + first visible experience card (not only 0-state when data available) */}
             <div className="mt-2.5 rounded-lg bg-white/8 p-2.5 border border-white/10">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-medium tracking-wide text-orange-300">Adventure Radar</span>
                 <span className="font-mono text-xs opacity-75">{HERO_RADIUS_KM} km</span>
               </div>
-              <div className="mt-0.5 text-base font-semibold tabular-nums text-orange-200">
-                {radarQuests.length} real experiences nearby
-              </div>
-              <div className="mt-0.5 text-[10px] opacity-70">
-                {locationLabel}
-              </div>
+              {radarQuests.length > 0 ? (
+                <>
+                  <div className="mt-0.5 text-base font-semibold tabular-nums text-orange-200 line-clamp-1">
+                    {radarQuests[currentRadarIndex]?.title || radarQuests[0]?.title}
+                  </div>
+                  {(radarQuests[currentRadarIndex] || radarQuests[0])?.description && (
+                    <div className="mt-0.5 text-[10px] opacity-80 line-clamp-2">
+                      {(radarQuests[currentRadarIndex] || radarQuests[0]).description}
+                    </div>
+                  )}
+                  <div className="mt-0.5 text-[10px] opacity-70">
+                    {locationLabel}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="mt-0.5 text-base font-semibold tabular-nums text-orange-200">
+                    0 real experiences nearby
+                  </div>
+                  <div className="mt-0.5 text-[10px] opacity-70">
+                    {locationLabel}
+                  </div>
+                </>
+              )}
 
               {(locationStatus !== 'active' && locationStatus !== 'locating') && (
                 <button
