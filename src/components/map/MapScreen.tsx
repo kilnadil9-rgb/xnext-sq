@@ -20,7 +20,7 @@ import {
   type RankedQuest,
 } from '../../lib/adventureRadar'
 import type { LatLng, RouteSummary } from './types'
-import { MAPS_API_KEY, MAPS_MAP_ID, FALLBACK_CENTER } from './mapsConfig'
+import { MAPS_API_KEY, MAPS_MAP_ID, FALLBACK_CENTER, XNEXT_MAP_STYLES } from './mapsConfig'
 import { MapErrorBoundary } from './MapErrorBoundary'
 import { QuestClusterer } from './QuestClusterer'
 import { QuestList } from './QuestList'
@@ -290,6 +290,7 @@ function RadarScreen() {
           reuseMaps
           onCameraChanged={handleCameraChanged}
           className="radar-screen__canvas"
+          styles={XNEXT_MAP_STYLES}
         >
           {userPosition && (
             <AdvancedMarker position={userPosition} title="You are here">

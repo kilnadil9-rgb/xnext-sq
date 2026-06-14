@@ -1,12 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-
-import { pulseService } from '../../services/pulseService'
-import { dreamListService } from '../../services/dreamListService'
-import { questService } from '../../services/questService'
-import type { PulseAlert, DreamListItemWithQuest, Quest } from '../../lib/supabase/types'
-import { LoadingState } from '../../components/ui/LoadingState'
-import { ErrorState } from '../../components/ui/ErrorState'
 
 // Map background (reused patterns from MapScreen / hooks; only for visual world layer + real radar count)
 import {
@@ -18,25 +11,15 @@ import { useUserLocation } from '../../hooks/useUserLocation'
 import { useNearbyQuests } from '../../hooks/useNearbyQuests'
 import { MapErrorBoundary } from '../../components/map/MapErrorBoundary'
 import type { LatLng } from '../../components/map/types'
-import { MAPS_API_KEY, FALLBACK_CENTER } from '../../components/map/mapsConfig'
+import { MAPS_API_KEY, FALLBACK_CENTER, XNEXT_MAP_STYLES } from '../../components/map/mapsConfig'
+import { AdventureFrame } from '../../components/ui/AdventureFrame'
 
 /**
  * Dashboard home — real data previews for Active Pulse (top 3), Saved Dream List (top 3 saved),
  * and Discover Quests (top 3 published). Partial section failures are tolerated.
  */
 export function HomePage() {
-  // Preview data (top 3 from each source)
-  const [pulseAlerts, setPulseAlerts] = useState<PulseAlert[]>([])
-  const [dreamItems, setDreamItems] = useState<DreamListItemWithQuest[]>([])
-  const [discoverQuests, setDiscoverQuests] = useState<Quest[]>([])
 
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [sectionErrors, setSectionErrors] = useState<{
-    pulse?: string
-    dream?: string
-    quests?: string
-  }>({})
 
   // Map hero + Adventure Radar status (real data only)
   const {
@@ -114,50 +97,7 @@ export function HomePage() {
       ? 'Geolocation unavailable'
       : 'Safe fallback (map view)'
 
-  const loadPreviews = useCallback(async () => {
-    setLoading(true)
-    setError(null)
-    setSectionErrors({})
 
-    const [pulseRes, dreamRes, questsRes] = await Promise.all([
-      pulseService.getActivePulseAlerts({ limit: 3 }),
-      dreamListService.getMyDreamList({ limit: 3, status: 'saved' }),
-      questService.listPublishedQuests({ limit: 3 }),
-    ])
-
-    let failCount = 0
-
-    if (pulseRes.error) {
-      setSectionErrors((prev) => ({ ...prev, pulse: pulseRes.error ?? undefined }))
-      failCount++
-    } else {
-      setPulseAlerts(pulseRes.data ?? [])
-    }
-
-    if (dreamRes.error) {
-      setSectionErrors((prev) => ({ ...prev, dream: dreamRes.error ?? undefined }))
-      failCount++
-    } else {
-      setDreamItems(dreamRes.data ?? [])
-    }
-
-    if (questsRes.error) {
-      setSectionErrors((prev) => ({ ...prev, quests: questsRes.error ?? undefined }))
-      failCount++
-    } else {
-      setDiscoverQuests(questsRes.data ?? [])
-    }
-
-    if (failCount === 3) {
-      setError('Failed to load dashboard previews.')
-    }
-
-    setLoading(false)
-  }, [])
-
-  useEffect(() => {
-    loadPreviews()
-  }, [loadPreviews])
 
   return (
     <div className="relative h-screen overflow-hidden bg-background text-foreground">
@@ -173,6 +113,7 @@ export function HomePage() {
                 gestureHandling="cooperative"
                 disableDefaultUI
                 mapId={undefined}
+                styles={XNEXT_MAP_STYLES}
               >
                 {/* Subtle real markers (capped) to make the world feel alive — no fakes */}
                 {radarQuests.slice(0, 5).map((q) =>
@@ -208,46 +149,61 @@ export function HomePage() {
               <div className="text-sm -mt-1 opacity-80">What might happen next?</div>
             </div>
 
-            {/* Cleaner Adventure Radar card + first visible experience card (not only 0-state when data available) */}
-            <div className="mt-2.5 rounded-lg bg-white/8 p-2.5 border border-white/10">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-medium tracking-wide text-orange-300">Adventure Radar</span>
-                <span className="font-mono text-xs opacity-75">{HERO_RADIUS_KM} km</span>
+            {/* Adventure Radar - replaced with framed HUD style per concept */}
+            <AdventureFrame variant="radar" className="mt-2.5 !p-0 overflow-hidden">
+              {/* Radar header bar - orange/yellow tech */}
+              <div className="flex items-center justify-between bg-black/60 px-3 py-1.5 border-b border-[#f97316]/50">
+                <div className="flex items-center gap-2">
+                  <span className="text-[#f97316] text-sm tracking-[2px] font-bold">ADVENTURE RADAR</span>
+                </div>
+                <div className="text-[10px] text-[#fde047] font-mono px-2 py-0.5 bg-black/40 rounded border border-[#fde047]/30">
+                  {HERO_RADIUS_KM} KM
+                </div>
               </div>
-              {radarQuests.length > 0 ? (
-                <>
-                  <div className="mt-0.5 text-base font-semibold tabular-nums text-orange-200 line-clamp-1">
-                    {radarQuests[currentRadarIndex]?.title || radarQuests[0]?.title}
-                  </div>
-                  {(radarQuests[currentRadarIndex] || radarQuests[0])?.description && (
-                    <div className="mt-0.5 text-[10px] opacity-80 line-clamp-2">
-                      {(radarQuests[currentRadarIndex] || radarQuests[0]).description}
-                    </div>
-                  )}
-                  <div className="mt-0.5 text-[10px] opacity-70">
-                    {locationLabel}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="mt-0.5 text-base font-semibold tabular-nums text-orange-200">
-                    0 real experiences nearby
-                  </div>
-                  <div className="mt-0.5 text-[10px] opacity-70">
-                    {locationLabel}
-                  </div>
-                </>
-              )}
 
-              {(locationStatus !== 'active' && locationStatus !== 'locating') && (
-                <button
-                  onClick={requestLocation}
-                  className="mt-1.5 text-[10px] underline hover:no-underline text-orange-300"
-                >
-                  Enable location to see what's next around you
-                </button>
-              )}
-            </div>
+              <div className="p-3 space-y-2">
+                {/* Animated pulse ring + location status */}
+                <div className="flex items-center gap-3">
+                  <div className="relative w-8 h-8 flex-shrink-0">
+                    <div className="absolute inset-0 rounded-full border-2 border-[#f97316] animate-ping opacity-60" />
+                    <div className="absolute inset-1 rounded-full border border-[#fde047] flex items-center justify-center">
+                      <span className="text-[#f97316] text-[10px]">●</span>
+                    </div>
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] text-[#fde047] font-mono tracking-wider">LIVE • {locationLabel.toUpperCase()}</div>
+                    <div className="text-xs text-white/60 truncate">Real-time scan active</div>
+                  </div>
+                </div>
+
+                {/* Experience count + first card preview */}
+                {radarQuests.length > 0 ? (
+                  <div>
+                    <div className="text-lg font-bold text-[#f97316] tabular-nums">{radarQuests.length} EXPERIENCES</div>
+                    <div className="text-sm text-white mt-0.5 line-clamp-1 font-medium">
+                      {radarQuests[currentRadarIndex]?.title || radarQuests[0]?.title}
+                    </div>
+                    <div className="text-[10px] text-white/60 line-clamp-1 mt-0.5">
+                      {(radarQuests[currentRadarIndex] || radarQuests[0])?.description?.slice(0, 80) || 'Nearby discovery'}
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <div className="text-lg font-bold text-[#f97316] tabular-nums">0 EXPERIENCES</div>
+                    <div className="text-xs text-white/60 mt-1">No quests within range. Widen radius or enable location.</div>
+                  </div>
+                )}
+
+                {(locationStatus !== 'active' && locationStatus !== 'locating') && (
+                  <button
+                    onClick={requestLocation}
+                    className="text-[10px] text-[#fde047] underline hover:no-underline mt-1 block"
+                  >
+                    ENABLE LOCATION FOR LIVE SCAN
+                  </button>
+                )}
+              </div>
+            </AdventureFrame>
 
             {/* Quick actions as overlays (Discover → Save → Pulse loop) — compact */}
             <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
@@ -258,218 +214,34 @@ export function HomePage() {
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Compact preview cards below hero (kept as cards/overlays feel; reduced spacing for mobile so map remains prominent) */}
-      <div className="mx-auto max-w-5xl px-3 py-4 space-y-4 text-sm">
-        {loading && <LoadingState message="Loading your previews…" />}
-
-        {!loading && error && (
-          <ErrorState
-            message={error}
-            onRetry={loadPreviews}
-          />
-        )}
-
-        {!loading && !error && (
-          <div className="space-y-8">
-            {/* Active Pulse Preview — time-sensitive part of the loop */}
-            <section>
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-foreground">Pulse Alerts</h2>
-                <Link
-                  to="/dashboard/pulse"
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  View all →
-                </Link>
-              </div>
-
-              {sectionErrors.pulse ? (
-                <div className="rounded-xl border border-border bg-card p-4 text-sm">
-                  <span className="text-destructive">Failed to load pulse alerts.</span>{' '}
-                  <button
-                    onClick={loadPreviews}
-                    className="text-primary underline hover:no-underline"
-                  >
-                    Retry
-                  </button>
-                </div>
-              ) : pulseAlerts.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
-                  <p className="text-sm font-medium text-foreground">Your radar is quiet right now.</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Time-sensitive opportunities matching your preferences will appear here.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {pulseAlerts.map((alert) => (
-                    <ActivePulsePreviewCard key={alert.id} alert={alert} />
-                  ))}
+        {/* Bottom floating experience preview cards - upgraded with frame, "large image" placeholder (icon), category, distance, primary CTA. Map remains visible. */}
+        <div className="absolute bottom-3 left-3 right-3 z-10 md:bottom-4 md:left-auto md:right-4 md:w-80 lg:w-72 pointer-events-auto">
+          <AdventureFrame variant="card" className="!p-1 bg-black/70 text-[10px]">
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              {/* Example preview cards using real data where available - large "image" as icon header */}
+              {radarQuests.length > 0 && (
+                <div className="min-w-[110px] bg-black/60 rounded border border-white/10 p-1 flex-shrink-0">
+                  <div className="h-6 bg-gradient-to-r from-orange-900/60 to-yellow-900/40 rounded mb-1 flex items-center justify-center text-[10px]">🏕️</div>
+                  <div className="font-medium text-orange-300 truncate text-[9px]">{radarQuests[0].title}</div>
+                  <div className="text-[8px] text-white/60">Nearby • {radarQuests[0].experience_class}</div>
+                  <button onClick={() => window.dispatchEvent(new CustomEvent('xnext-next'))} className="mt-0.5 text-[8px] bg-primary text-black px-1 rounded w-full">NEXT</button>
                 </div>
               )}
-            </section>
-
-            {/* Saved Dream List Preview — save/intent part of the loop */}
-            <section>
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-foreground">Dream List Highlights</h2>
-                <Link
-                  to="/dashboard/dream-list"
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  View all →
-                </Link>
-              </div>
-
-              {sectionErrors.dream ? (
-                <div className="rounded-xl border border-border bg-card p-4 text-sm">
-                  <span className="text-destructive">Failed to load dream list.</span>{' '}
-                  <button
-                    onClick={loadPreviews}
-                    className="text-primary underline hover:no-underline"
-                  >
-                    Retry
-                  </button>
-                </div>
-              ) : dreamItems.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
-                  <p className="text-sm font-medium text-foreground">Save experiences to your Dream List and XNEXT will track what matters.</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Your saved intent powers future Pulse alerts and recommendations.
-                  </p>
-                  <Link
-                    to="/dashboard/quests"
-                    className="mt-4 inline-block rounded-md bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground hover:bg-primary/90"
-                  >
-                    Explore opportunities
-                  </Link>
-                </div>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {dreamItems.map((item) => (
-                    <SavedDreamPreviewCard key={item.id} item={item} />
-                  ))}
+              {/* Fallback preview if no data */}
+              {radarQuests.length === 0 && (
+                <div className="min-w-[110px] bg-black/60 rounded border border-white/10 p-1 flex-shrink-0">
+                  <div className="h-6 bg-gradient-to-r from-orange-900/60 to-yellow-900/40 rounded mb-1 flex items-center justify-center text-[10px]">🗺️</div>
+                  <div className="font-medium text-orange-300 truncate text-[9px]">Discover more</div>
+                  <div className="text-[8px] text-white/60">Widen radius or enable location</div>
                 </div>
               )}
-            </section>
-
-            {/* Discover / Opportunities Preview — discover/experience part of the loop */}
-            <section>
-              <div className="mb-4 flex items-center justify-between">
-                <h2 className="text-base font-semibold text-foreground">Opportunities Today</h2>
-                <Link
-                  to="/dashboard/quests"
-                  className="text-xs font-medium text-primary hover:underline"
-                >
-                  View all →
-                </Link>
-              </div>
-
-              {sectionErrors.quests ? (
-                <div className="rounded-xl border border-border bg-card p-4 text-sm">
-                  <span className="text-destructive">Failed to load quests.</span>{' '}
-                  <button
-                    onClick={loadPreviews}
-                    className="text-primary underline hover:no-underline"
-                  >
-                    Retry
-                  </button>
-                </div>
-              ) : discoverQuests.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border bg-card p-8 text-center">
-                  <p className="text-sm font-medium text-foreground">Turn on location or widen your radius to discover more.</p>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Real experiences from the world around you will surface here when available.
-                  </p>
-                </div>
-              ) : (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {discoverQuests.map((quest) => (
-                    <DiscoverQuestPreviewCard key={quest.id} quest={quest} />
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
-        )}
+            </div>
+          </AdventureFrame>
+        </div>
       </div>
     </div>
   )
 }
 
-// ─── Preview Cards (display only; no actions) ─────────────────────────────────
 
-function ActivePulsePreviewCard({ alert }: { alert: PulseAlert }) {
-  return (
-    <div className="rounded-xl border border-border bg-card p-5 flex flex-col">
-      <div>
-        <div className="text-xs uppercase tracking-wider text-muted-foreground">
-          {alert.triggered_by.replace(/_/g, ' ')}
-        </div>
-        {alert.sq_score_at_trigger != null && (
-          <div className="mt-1 text-lg font-semibold text-primary">
-            SQ {alert.sq_score_at_trigger}
-          </div>
-        )}
-      </div>
-
-      <div className="mt-3 text-xs text-muted-foreground">
-        {new Date(alert.created_at).toLocaleString()}
-      </div>
-
-      <div className="mt-auto pt-3">
-        <Link to="/dashboard/pulse" className="text-sm text-primary hover:underline">
-          View in Pulse →
-        </Link>
-      </div>
-    </div>
-  )
-}
-
-function SavedDreamPreviewCard({ item }: { item: DreamListItemWithQuest }) {
-  const q = item.quests
-  const questLabel = q ? q.title : (item.quest_id ? `Quest ${item.quest_id.slice(0, 8)}...` : 'Unknown quest')
-  const linkId = q ? q.id : item.quest_id
-
-  return (
-    <Link to={`/dashboard/quests/${linkId}`} className="block no-underline">
-      <div className="flex flex-col rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-sm">
-        <div className="font-semibold text-foreground line-clamp-2">{questLabel}</div>
-
-        <div className="mt-2 text-xs text-muted-foreground">Priority: {item.priority}</div>
-
-        {item.target_date && (
-          <div className="mt-1 text-xs text-muted-foreground">
-            Target: {new Date(item.target_date).toLocaleDateString()}
-          </div>
-        )}
-      </div>
-    </Link>
-  )
-}
-
-function DiscoverQuestPreviewCard({ quest }: { quest: Quest }) {
-  return (
-    <Link to={`/dashboard/quests/${quest.id}`} className="block no-underline">
-      <div className="flex flex-col rounded-xl border border-border bg-card p-5 transition-shadow hover:shadow-sm">
-        <div className="flex items-start justify-between gap-3">
-          <span className="inline-block rounded-full bg-accent px-2.5 py-0.5 text-xs font-medium text-accent-foreground capitalize">
-            {quest.experience_class}
-          </span>
-
-          {quest.sq_score != null && (
-            <span className="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
-              SQ {quest.sq_score}
-            </span>
-          )}
-        </div>
-
-        <h3 className="mt-3 line-clamp-2 text-base font-semibold text-foreground">
-          {quest.title}
-        </h3>
-      </div>
-    </Link>
-  )
-}
