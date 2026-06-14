@@ -42,13 +42,13 @@ export function DashboardLayout() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      {/* ── Sidebar ──────────────────────────────────────────────────────── */}
+      {/* ── Sidebar (persistent on non-map pages; overlay/drawer only on map home via hamburger) ───────────────── */}
       <aside
         className={`
           fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-border bg-card
           transition-transform duration-200
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          lg:static lg:translate-x-0
+          ${isMapHome ? '' : 'lg:static lg:translate-x-0'}
         `}
       >
         {/* Brand */}
@@ -104,8 +104,9 @@ export function DashboardLayout() {
 
       {/* ── Main ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top header */}
-        <header className="flex h-16 items-center justify-between border-b border-border bg-card px-4 lg:px-6">
+        {/* Top header: float over map on home/map experience, normal on other pages */}
+        <header className={`flex h-16 items-center justify-between border-b border-border bg-card px-4 lg:px-6 z-50
+          ${isMapHome ? 'absolute top-0 left-0 right-0 bg-black/60 backdrop-blur border-none' : ''}`}>
           <button
             className="rounded-md p-2 text-muted-foreground hover:bg-accent lg:hidden"
             onClick={() => setSidebarOpen(true)}
@@ -117,8 +118,8 @@ export function DashboardLayout() {
           <UserMenu />
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-hidden relative">
+        {/* Page content: full for map home (child provides full map + overlays), padded for other pages */}
+        <main className={`flex-1 overflow-hidden relative ${isMapHome ? '' : 'p-4 lg:p-6'}`}>
           <Outlet />
         </main>
 
@@ -214,28 +215,22 @@ export function DashboardLayout() {
           </div>
         )}
 
-        {/* Reduced footer on map home for less clutter; full Trust Center elsewhere. All legal still accessible. */}
-        <footer className="border-t border-border bg-card px-4 py-2 text-[10px] text-muted-foreground">
-          {isMapHome ? (
-            <p className="text-center opacity-70">
-              Your memories belong to you. Your adventures belong to you.
+        {/* Footer: hidden on map home (reduced text can live in radar frame or bottom nav if needed); full on other pages. Admin preserved in hamburger. */}
+        {!isMapHome && (
+          <footer className="border-t border-border bg-card px-4 py-2 text-[10px] text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 justify-center">
+              <Link to="/privacy-policy" className="hover:text-foreground hover:underline">Privacy Policy</Link>
+              <Link to="/terms-of-service" className="hover:text-foreground hover:underline">Terms of Service</Link>
+              <Link to="/community-guidelines" className="hover:text-foreground hover:underline">Community Guidelines</Link>
+              <Link to="/data-requests" className="hover:text-foreground hover:underline">Data Requests</Link>
+              <a href="mailto:support@xnext.example" className="hover:text-foreground hover:underline">Contact Support</a>
+              <Link to="/philosophy" className="hover:text-foreground hover:underline">Product Philosophy</Link>
+            </div>
+            <p className="mt-1 text-center text-[10px] opacity-70">
+              Your memories belong to you. Your adventures belong to you. You can export or delete your data at any time.
             </p>
-          ) : (
-            <>
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 justify-center">
-                <Link to="/privacy-policy" className="hover:text-foreground hover:underline">Privacy Policy</Link>
-                <Link to="/terms-of-service" className="hover:text-foreground hover:underline">Terms of Service</Link>
-                <Link to="/community-guidelines" className="hover:text-foreground hover:underline">Community Guidelines</Link>
-                <Link to="/data-requests" className="hover:text-foreground hover:underline">Data Requests</Link>
-                <a href="mailto:support@xnext.example" className="hover:text-foreground hover:underline">Contact Support</a>
-                <Link to="/philosophy" className="hover:text-foreground hover:underline">Product Philosophy</Link>
-              </div>
-              <p className="mt-1 text-center text-[10px] opacity-70">
-                Your memories belong to you. Your adventures belong to you. You can export or delete your data at any time.
-              </p>
-            </>
-          )}
-        </footer>
+          </footer>
+        )}
       </div>
     </div>
   )

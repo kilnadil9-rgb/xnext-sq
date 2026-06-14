@@ -100,7 +100,7 @@ export function HomePage() {
 
 
   return (
-    <div className="relative h-screen overflow-hidden bg-background text-foreground">
+    <div className="relative h-full overflow-hidden bg-background text-foreground">
       {/* Full map background (world layer) — always visible, no partial hero */}
       <div className="absolute inset-0 overflow-hidden bg-muted">
         {MAPS_API_KEY ? (

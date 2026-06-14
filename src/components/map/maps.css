@@ -5,15 +5,14 @@
 .radar-screen {
   display: flex;
   flex-direction: column;
-  /* dashboard shell: 4rem header + 2rem main padding */
-  height: calc(100dvh - 6rem);
+  height: 100%; /* full in unified map home layout; header/bottom float over map */
   min-height: 320px;
   gap: 12px;
 }
 
 .radar-screen__map {
   position: relative;
-  flex: 0 0 55%;
+  flex: 1; /* map takes most space in unified layout; list below is compact */
   min-height: 220px;
   border-radius: 16px;
   overflow: hidden;
