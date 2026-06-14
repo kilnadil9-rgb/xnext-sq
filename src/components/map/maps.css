@@ -378,6 +378,30 @@
   margin-top: 2px;
 }
 
+/* Live Mode Phase 1 visuals - orange pulse, premium dark aesthetic */
+.live-glow {
+  animation: live-pulse 2s infinite ease-in-out;
+  background: #f97316 !important;
+  box-shadow: 0 0 8px #f97316, 0 0 16px #f97316;
+  border-color: #fff !important;
+}
+
+.user-dot.live {
+  background: #f97316;
+  box-shadow: 0 0 0 6px rgba(249, 115, 22, 0.35);
+  animation: user-live-pulse 1.5s infinite ease-in-out;
+}
+
+@keyframes live-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.35); opacity: 0.65; }
+}
+
+@keyframes user-live-pulse {
+  0%, 100% { box-shadow: 0 0 0 6px rgba(249, 115, 22, 0.35); }
+  50% { box-shadow: 0 0 0 14px rgba(249, 115, 22, 0.15); }
+}
+
 .badge {
   display: inline-block;
   padding: 1px 8px;

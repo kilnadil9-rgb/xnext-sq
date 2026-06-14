@@ -5,8 +5,10 @@ import {
   APILoadingStatus,
   Map,
   useApiLoadingStatus,
+  useMap,
   type MapCameraChangedEvent,
 } from '@vis.gl/react-google-maps'
+import { useRef } from 'react'
 import { useUserLocation } from '../../hooks/useUserLocation'
 import { useNearbyQuests } from '../../hooks/useNearbyQuests'
 import { usePulseQuestIds } from '../../hooks/usePulseQuestIds'
@@ -36,6 +38,39 @@ function nearestRadiusOption(km: number): number {
   )
 }
 const DEFAULT_RADIUS_KM = Number(import.meta.env.VITE_DEFAULT_RADIUS_KM ?? 5)
+
+function LiveRadiusRing({ center, radiusMiles }: { center: LatLng; radiusMiles: number }) {
+  const map = useMap()
+  const circleRef = useRef<google.maps.Circle | null>(null)
+
+  useEffect(() => {
+    if (!map) return
+    const radiusMeters = radiusMiles * 1609.34
+    if (!circleRef.current) {
+      circleRef.current = new google.maps.Circle({
+        strokeColor: '#f97316',
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        fillColor: '#f97316',
+        fillOpacity: 0.08,
+        map,
+        center,
+        radius: radiusMeters,
+      })
+    } else {
+      circleRef.current.setCenter(center)
+      circleRef.current.setRadius(radiusMeters)
+    }
+    return () => {
+      if (circleRef.current) {
+        circleRef.current.setMap(null)
+        circleRef.current = null
+      }
+    }
+  }, [map, center, radiusMiles])
+
+  return null
+}
 
 export default function MapScreen() {
   if (!MAPS_API_KEY) {
@@ -79,14 +114,56 @@ function RadarScreen() {
   const [routeTo, setRouteTo] = useState<LatLng | null>(null)
   const [routeSummary, setRouteSummary] = useState<RouteSummary | null>(null)
   const [routeError, setRouteError] = useState<string | null>(null)
+  const [hasAutoCentered, setHasAutoCentered] = useState(false)
+  const [currentIndex, setCurrentIndex] = useState(0)
+
+  // Live Mode state (Phase 1 MVP)
+  const [isLiveMode, setIsLiveMode] = useState(false)
+  const [liveRadiusMiles, setLiveRadiusMiles] = useState(5)
 
   const mapsReady = apiStatus === APILoadingStatus.LOADED
 
-  // Quests follow the visible map area, not just the user.
+
+
+  // Auto-request location clearly on first load of the radar (triggers permission prompt where possible).
+  // For strict mobile Safari, the locate button remains the reliable gesture-based fallback.
+  // Adventure Radar will use real user coords once granted.
+  useEffect(() => {
+    if (locationStatus === 'idle' && mapsReady) {
+      if (import.meta.env.DEV) {
+        console.log('[MapScreen] First load — requesting user location for centering and Radar query')
+      }
+      requestLocation()
+    }
+  }, [locationStatus, mapsReady, requestLocation])
+
+  // When real user location is granted, center the map and queries on it (do not stay on fallback).
+  // Only auto-center once on initial grant (subsequent watch updates don't override user panning).
+  useEffect(() => {
+    if (userPosition && locationStatus === 'active' && !hasAutoCentered) {
+      if (import.meta.env.DEV) {
+        console.log('[MapScreen] Real user location acquired — centering map and Radar on user coords', userPosition)
+      }
+      setCameraCenter(userPosition)
+      setHasAutoCentered(true)
+    }
+  }, [userPosition, locationStatus, hasAutoCentered])
+
+  // Quests follow the visible map area (initially real user location once granted).
+  // This ensures Adventure Radar starts with real user coordinates, not fallback.
+  const effectiveRadiusKm = isLiveMode 
+    ? liveRadiusMiles * 1.60934 
+    : radiusKm
+
   const { quests, loading, error: questsError } = useNearbyQuests(
     cameraCenter,
-    { radiusKm, enabled: mapsReady, refreshKey },
+    { radiusKm: effectiveRadiusKm, enabled: mapsReady, refreshKey },
   )
+
+  if (import.meta.env.DEV && cameraCenter) {
+    // Lightweight dev log only — helps verify real vs fallback without spamming prod
+    console.log('[MapScreen] Radar query center (should be real user coords after grant):', cameraCenter)
+  }
 
   // Pulse boost is optional sugar; empty set when unavailable.
   const pulseQuestIds = usePulseQuestIds(mapsReady)
@@ -139,6 +216,55 @@ function RadarScreen() {
     [rankedQuests, handleSelectQuest],
   )
 
+  const handleNext = useCallback(() => {
+    if (rankedQuests.length === 0) return
+    const nextIndex = (currentIndex + 1) % rankedQuests.length
+    setCurrentIndex(nextIndex)
+    const nextQ = rankedQuests[nextIndex]
+    handleSelectQuest(nextQ)
+    setCameraCenter({ lat: nextQ.lat, lng: nextQ.lng })
+    if (import.meta.env.DEV) {
+      console.log('[NEXT] cycled to:', nextQ.title)
+    }
+  }, [currentIndex, rankedQuests, handleSelectQuest])
+
+  // Auto-select first on load for immediate NEXT loop experience with real data
+  useEffect(() => {
+    if (rankedQuests.length > 0 && !selectedQuest) {
+      setCurrentIndex(0)
+      handleSelectQuest(rankedQuests[0])
+    }
+  }, [rankedQuests, selectedQuest, handleSelectQuest])
+
+  // Listen for unified NEXT from bottom nav (or other sources)
+  useEffect(() => {
+    const handler = () => handleNext()
+    window.addEventListener('xnext-next', handler)
+    return () => window.removeEventListener('xnext-next', handler)
+  }, [handleNext])
+
+  // Live Mode listeners from bottom nav long press
+  useEffect(() => {
+    const enter = () => {
+      if (import.meta.env.DEV) console.log('[Live] enter')
+      setIsLiveMode(true)
+      if (userPosition) {
+        setCameraCenter(userPosition)
+      }
+      setLiveRadiusMiles(5) // default
+    }
+    const exit = () => {
+      if (import.meta.env.DEV) console.log('[Live] exit')
+      setIsLiveMode(false)
+    }
+    window.addEventListener('xnext-live-enter', enter)
+    window.addEventListener('xnext-live-exit', exit)
+    return () => {
+      window.removeEventListener('xnext-live-enter', enter)
+      window.removeEventListener('xnext-live-exit', exit)
+    }
+  }, [userPosition])
+
   const handleRoute = useCallback((s: RouteSummary) => setRouteSummary(s), [])
   const handleRouteError = useCallback((m: string) => setRouteError(m), [])
   const handleRetry = useCallback(() => setRefreshKey((k) => k + 1), [])
@@ -156,8 +282,8 @@ function RadarScreen() {
       <div className="radar-screen__map">
         <Map
           mapId={MAPS_MAP_ID}
-          defaultCenter={FALLBACK_CENTER}
-          defaultZoom={14}
+          center={cameraCenter}
+          zoom={14}
           gestureHandling="greedy"
           disableDefaultUI
           clickableIcons={false}
@@ -168,16 +294,21 @@ function RadarScreen() {
           {userPosition && (
             <AdvancedMarker position={userPosition} title="You are here">
               <div
-                className="user-dot"
+                className={`user-dot ${isLiveMode ? 'live' : ''}`}
                 aria-label={`Your location, accuracy ${Math.round(accuracy ?? 0)} m`}
               />
             </AdvancedMarker>
+          )}
+
+          {isLiveMode && userPosition && (
+            <LiveRadiusRing center={userPosition} radiusMiles={liveRadiusMiles} />
           )}
 
           <QuestClusterer
             quests={rankedQuests}
             selectedId={selectedQuest?.id ?? null}
             onSelect={handleSelectFromMap}
+            isLive={isLiveMode}
           />
 
           <DirectionsLayer
@@ -205,6 +336,46 @@ function RadarScreen() {
               </option>
             ))}
           </select>
+
+          {/* Prominent NEXT button for cycling real experiences - tap to get the next nearby */}
+          <button
+            onClick={handleNext}
+            disabled={!rankedQuests.length}
+            className="ml-2 px-4 py-1.5 rounded bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50"
+            aria-label="Cycle to next experience"
+          >
+            NEXT
+          </button>
+        </div>
+
+        {/* Live Mode radius selector and exit (only when active) */}
+        {isLiveMode && (
+          <>
+            <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[70] flex gap-1 bg-card/90 p-1 rounded-full shadow text-xs">
+              {[0.5, 1, 5, 25].map((m) => (
+                <button
+                  key={m}
+                  onClick={() => setLiveRadiusMiles(m)}
+                  className={`px-2 py-0.5 rounded-full transition ${liveRadiusMiles === m ? 'bg-primary text-white' : 'hover:bg-muted'}`}
+                >
+                  {m} mi
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => window.dispatchEvent(new CustomEvent('xnext-live-exit'))}
+              className="absolute top-4 right-4 z-[70] px-3 py-1 bg-card border text-sm rounded shadow hover:bg-muted"
+            >
+              Exit Live
+            </button>
+          </>
+        )}
+
+        {/* Clearer permission note — XNEXT language, less generic */}
+        <div className="absolute right-3 top-[88px] z-[60] max-w-[200px] rounded-md border border-border/70 bg-card/95 px-2 py-1 text-[10px] leading-snug shadow text-muted-foreground">
+          See real experiences near you.<br />
+          XNEXT uses your location only for discovery. Never sold.<br />
+          Turn off anytime in settings.
         </div>
 
         <button
@@ -219,7 +390,7 @@ function RadarScreen() {
 
         {locationStatus === 'denied' && (
           <div className="map-toast map-toast--error">
-            Location permission denied. Enable it in your browser settings.
+            Location off. Enable it to see real experiences around you. XNEXT never sells your location.
           </div>
         )}
         {locationError && locationStatus === 'error' && (
@@ -241,6 +412,7 @@ function RadarScreen() {
               setSelectedQuest(null)
               clearRoute()
             }}
+            onNext={handleNext}
           />
         )}
       </div>

@@ -26,6 +26,14 @@ import { QuestDetailPage } from './pages/dashboard/QuestDetailPage'
 import { DreamListPage } from './pages/dashboard/DreamListPage'
 import { PulsePage } from './pages/dashboard/PulsePage'
 
+// ── Legal / Trust pages (public + consent) ────────────────────────────────────
+import { PrivacyPolicyPage } from './pages/legal/PrivacyPolicyPage'
+import { TermsOfServicePage } from './pages/legal/TermsOfServicePage'
+import { CommunityGuidelinesPage } from './pages/legal/CommunityGuidelinesPage'
+import { ProductPhilosophyPage } from './pages/legal/ProductPhilosophyPage'
+import { DataRequestsPage } from './pages/legal/DataRequestsPage'
+import { ConsentPage } from './pages/legal/ConsentPage'
+
 // Lazy: keeps the Google Maps JS SDK out of the main bundle
 const MapPage = lazy(() => import('./pages/dashboard/MapPage'))
 const MyQuestsPage = lazy(() => import('./pages/dashboard/MyQuestsPage'))
@@ -57,8 +65,16 @@ export function App() {
           {/* ── Semi-public: invite (auth check handled inside page) ───── */}
           <Route path="/invite/:token" element={<AcceptInvitePage />} />
 
-          {/* ── Protected: dashboard ───────────────────────────────────── */}
+          {/* ── Public legal / trust pages (accessible pre- or post-auth) ─ */}
+          <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+          <Route path="/community-guidelines" element={<CommunityGuidelinesPage />} />
+          <Route path="/philosophy" element={<ProductPhilosophyPage />} />
+          <Route path="/data-requests" element={<DataRequestsPage />} />
+
+          {/* ── Protected: dashboard + consent gate ────────────────────── */}
           <Route element={<ProtectedRoute redirectTo="/auth/login" />}>
+            <Route path="/consent" element={<ConsentPage />} />
             <Route element={<DashboardLayout />}>
               <Route path="/dashboard" element={<HomePage />} />
               <Route path="/dashboard/profile" element={<ProfilePage />} />

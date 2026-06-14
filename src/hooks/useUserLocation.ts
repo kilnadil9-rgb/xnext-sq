@@ -21,6 +21,9 @@ export function useUserLocation(watch = true) {
   const watchId = useRef<number | null>(null)
 
   const onPosition = useCallback((pos: GeolocationPosition) => {
+    if (import.meta.env.DEV) {
+      console.log('[useUserLocation] position acquired', { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy })
+    }
     setState({
       position: { lat: pos.coords.latitude, lng: pos.coords.longitude },
       accuracy: pos.coords.accuracy,
@@ -30,6 +33,9 @@ export function useUserLocation(watch = true) {
   }, [])
 
   const onFail = useCallback((err: GeolocationPositionError) => {
+    if (import.meta.env.DEV) {
+      console.warn('[useUserLocation] geolocation error', err)
+    }
     const status: LocationStatus =
       err.code === err.PERMISSION_DENIED
         ? 'denied'
@@ -40,6 +46,9 @@ export function useUserLocation(watch = true) {
   }, [])
 
   const request = useCallback(() => {
+    if (import.meta.env.DEV) {
+      console.log('[useUserLocation] request() called — triggering geolocation (must be user gesture on iOS Safari)')
+    }
     if (!('geolocation' in navigator)) {
       setState((s) => ({
         ...s,

@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
 import { dreamListService } from '../../services/dreamListService'
 import { questCompletionService } from '../../services/questCompletionService'
 import { formatDistance } from '../../lib/distance'
@@ -16,6 +15,7 @@ interface Props {
   routeDisabled: boolean
   onShowRoute: () => void
   onClose: () => void
+  onNext?: () => void
 }
 
 /** Bottom-sheet preview for the selected quest, with Dream List save. */
@@ -25,11 +25,13 @@ export function QuestPreviewCard({
   routeDisabled,
   onShowRoute,
   onClose,
+  onNext,
 }: Props) {
   const [saveState, setSaveState] = useState<SaveState>('checking')
   const [saveError, setSaveError] = useState<string | null>(null)
   const [completionState, setCompletionState] =
     useState<CompletionState>('checking')
+  const [activeAdventure, setActiveAdventure] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -69,6 +71,14 @@ export function QuestPreviewCard({
       return
     }
     setCompletionState('done')
+  }
+
+  const handleLetsGo = () => {
+    if (routeSummary) {
+      onShowRoute()
+    } else {
+      setActiveAdventure(true)
+    }
   }
 
   const handleSave = async () => {
@@ -131,37 +141,52 @@ export function QuestPreviewCard({
           onClick={handleSave}
         >
           {saveState === 'saved'
-            ? '✓ On Dream List'
+            ? '✓ Saved'
             : saveState === 'saving'
               ? 'Saving…'
               : saveState === 'checking'
                 ? '…'
-                : 'Save to Dream List'}
+                : 'Save'}
         </button>
-        <Link to={`/dashboard/quests/${quest.id}`} className="quest-sheet__link">
-          Details
-        </Link>
-      </div>
-      <div className="quest-sheet__actions">
         <button
           type="button"
-          className={
-            completionState === 'done' ? 'quest-sheet__done' : undefined
-          }
-          disabled={
-            completionState === 'checking' || completionState === 'completing'
-          }
-          onClick={completionState === 'done' ? undefined : handleComplete}
+          className="quest-sheet__primary"
+          onClick={handleLetsGo}
         >
-          {completionState === 'done'
-            ? '🏆 Completed'
-            : completionState === 'completing'
-              ? 'Completing…'
-              : completionState === 'checking'
-                ? '…'
-                : 'Mark complete'}
+          {activeAdventure ? 'Ready to go' : "Let’s Go"}
         </button>
       </div>
+
+      {activeAdventure && !routeSummary && (
+        <p className="quest-sheet__meta text-center text-sm mt-1">
+          Ready to go! The map is centered on this experience. Use Next to find more or Save to your Dream List.
+        </p>
+      )}
+
+      {/* De-emphasized: Details removed as primary; Mark Complete only if active adventure */}
+      { (activeAdventure || completionState === 'done') && (
+        <div className="quest-sheet__actions">
+          <button
+            type="button"
+            className={
+              completionState === 'done' ? 'quest-sheet__done' : undefined
+            }
+            disabled={
+              completionState === 'checking' || completionState === 'completing'
+            }
+            onClick={completionState === 'done' ? undefined : handleComplete}
+          >
+            {completionState === 'done'
+              ? '🏆 Completed'
+              : completionState === 'completing'
+                ? 'Completing…'
+                : completionState === 'checking'
+                  ? '…'
+                  : 'Mark complete'}
+          </button>
+        </div>
+      )}
+
       <div className="quest-sheet__actions">
         <button type="button" disabled={routeDisabled} onClick={onShowRoute}>
           Show route
@@ -174,6 +199,25 @@ export function QuestPreviewCard({
           Open in Google Maps
         </a>
       </div>
+
+      {/* Additional info from seed: duration, source (safe access since NearbyQuest subset) */}
+      {(() => {
+        const meta = (quest as any).metadata || {};
+        return (
+          <div className="quest-sheet__meta text-xs mt-1 opacity-80">
+            {meta.duration && `Duration: ${meta.duration} · `}
+            {meta.source && `Source: ${meta.source}`}
+          </div>
+        );
+      })()}
+
+      {onNext && (
+        <div className="quest-sheet__actions mt-2">
+          <button type="button" onClick={onNext} className="quest-sheet__primary">
+            Next
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -24,3 +24,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+.vercel
+
+# Supabase local/temp
+supabase/.temp/

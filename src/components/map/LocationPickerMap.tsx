@@ -98,6 +98,11 @@ function PickerInner({ value, onChange }: Props) {
         />
       </div>
 
+      {/* Permission transparency note for the locate button in picker */}
+      <div className="absolute right-3 top-[72px] z-[60] max-w-[200px] rounded-md border border-border/70 bg-card/95 px-2 py-1 text-[10px] leading-snug shadow text-muted-foreground">
+        Location helps set quest coordinates. Never sold.
+      </div>
+
       <button
         type="button"
         className="locate-button"

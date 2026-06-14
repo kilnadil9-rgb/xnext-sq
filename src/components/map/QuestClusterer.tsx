@@ -10,10 +10,11 @@ interface Props {
   quests: NearbyQuest[]
   selectedId: string | null
   onSelect: (quest: NearbyQuest) => void
+  isLive?: boolean
 }
 
 /** Renders quest markers through MarkerClusterer (SuperCluster algorithm). */
-export function QuestClusterer({ quests, selectedId, onSelect }: Props) {
+export function QuestClusterer({ quests, selectedId, onSelect, isLive }: Props) {
   const map = useMap()
   const clusterer = useRef<MarkerClusterer | null>(null)
 
@@ -37,7 +38,7 @@ export function QuestClusterer({ quests, selectedId, onSelect }: Props) {
     const markers = quests.map((quest) => {
       const pin = document.createElement('div')
       pin.className =
-        'quest-pin' + (quest.id === selectedId ? ' quest-pin--selected' : '')
+        'quest-pin' + (quest.id === selectedId ? ' quest-pin--selected' : '') + (isLive ? ' live-glow' : '')
       pin.dataset.category = quest.experience_class
 
       const marker = new google.maps.marker.AdvancedMarkerElement({

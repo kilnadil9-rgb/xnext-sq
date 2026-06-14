@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
 import { UserMenu } from '../ui/UserMenu'
 import { OrganizationSwitcher } from '../ui/OrganizationSwitcher'
 import { useAuth } from '../../hooks/useAuth'
+import { BottomNav } from '../nav/BottomNav'
 
 /**
  * Primary app shell for authenticated users.
@@ -15,6 +16,21 @@ export function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const { profile } = useAuth()
   const navigate = useNavigate()
+  const { pathname } = useLocation()
+  const isMapHome = pathname === '/dashboard' || pathname === '/dashboard/' || pathname === '/dashboard/map'
+
+  const [openSheet, setOpenSheet] = useState<'discover' | 'timeline' | 'pulse' | 'people' | null>(null)
+
+  const handleNext = () => {
+    // Dispatch to any listening map component (MapScreen or Home map)
+    window.dispatchEvent(new CustomEvent('xnext-next'))
+  }
+
+  const openSheetHandler = (sheet: 'discover' | 'timeline' | 'pulse' | 'people') => {
+    setOpenSheet(sheet)
+  }
+
+  const closeSheet = () => setOpenSheet(null)
 
   // Consent gate: if profile loaded and no privacy acceptance recorded, force to consent screen.
   // This implements the first-launch consent flow (Deliverable 3) without showing dashboard chrome.
@@ -102,23 +118,123 @@ export function DashboardLayout() {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <main className="flex-1 overflow-hidden relative">
           <Outlet />
         </main>
 
-        {/* Trust Center footer (Deliverable 7) */}
-        <footer className="border-t border-border bg-card px-4 py-3 text-xs text-muted-foreground">
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-            <Link to="/privacy-policy" className="hover:text-foreground hover:underline">Privacy Policy</Link>
-            <Link to="/terms-of-service" className="hover:text-foreground hover:underline">Terms of Service</Link>
-            <Link to="/community-guidelines" className="hover:text-foreground hover:underline">Community Guidelines</Link>
-            <Link to="/data-requests" className="hover:text-foreground hover:underline">Data Requests</Link>
-            <a href="mailto:support@xnext.example" className="hover:text-foreground hover:underline">Contact Support</a>
-            <Link to="/philosophy" className="hover:text-foreground hover:underline">Product Philosophy</Link>
+        {/* Bottom nav - primary interaction for map home / experience layers.
+            Fixed so map (in child components) remains visible underneath. */}
+        {isMapHome && (
+          <BottomNav onNext={handleNext} onOpenSheet={openSheetHandler} />
+        )}
+
+        {/* Sheet overlays for nav items - map stays visible behind.
+            Limited height, scrollable content. */}
+        {openSheet && (
+          <div className="fixed inset-x-0 bottom-0 z-[60] bg-card border-t border-border rounded-t-2xl shadow-2xl max-h-[65vh] overflow-auto" role="dialog" aria-modal="true">
+            <div className="sticky top-0 bg-card border-b border-border p-4 flex items-center justify-between">
+              <span className="font-semibold text-lg capitalize">{openSheet}</span>
+              <button onClick={closeSheet} className="text-2xl leading-none" aria-label="Close">×</button>
+            </div>
+
+            <div className="p-4">
+              {openSheet === 'discover' && (
+                <div>
+                  <h3 className="font-medium mb-2">Add Discovery (Phase 1 shell)</h3>
+                  <p className="text-sm text-muted-foreground mb-4">Community-powered experiences only. No businesses.</p>
+                  <form onSubmit={(e) => { e.preventDefault(); alert('Discovery submitted (shell). In real: would create quest with location.'); closeSheet(); }} className="space-y-3">
+                    <input type="text" placeholder="Title (e.g. Hidden Waterfall)" className="w-full rounded border p-2 text-sm" required />
+                    <textarea placeholder="Short description" className="w-full rounded border p-2 text-sm h-20" required />
+                    <select className="w-full rounded border p-2 text-sm">
+                      <option>Hidden Viewpoint</option>
+                      <option>Waterfall</option>
+                      <option>Trail</option>
+                      <option>Rockhounding</option>
+                      <option>Stargazing</option>
+                      <option>Scenic Drive</option>
+                      <option>Family Spot</option>
+                      <option>Outdoor Adventure</option>
+                    </select>
+                    <div>
+                      <label className="text-xs block mb-1">Photo (UI only)</label>
+                      <input type="file" accept="image/*" className="text-sm" />
+                    </div>
+                    <div>
+                      <button type="button" onClick={() => alert('Using current location (shell)')} className="text-xs underline">Use current GPS location</button>
+                    </div>
+                    <input type="text" placeholder="Tags (comma separated)" className="w-full rounded border p-2 text-sm" />
+                    <button type="submit" className="w-full bg-primary text-primary-foreground rounded py-2 text-sm font-medium">Submit Discovery</button>
+                  </form>
+                </div>
+              )}
+
+              {openSheet === 'timeline' && (
+                <div>
+                  <h3 className="font-medium mb-3">Timeline</h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['Today', 'Tonight', 'This Weekend', 'This Week', 'This Month'].map(f => (
+                      <button key={f} onClick={() => { alert(`Timeline filter: ${f} (would update visible experiences on map)`); closeSheet(); }} className="border rounded p-3 text-left text-sm hover:bg-accent">
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-3">Selecting a filter would re-query and highlight time-sensitive experiences on the live map.</p>
+                </div>
+              )}
+
+              {openSheet === 'pulse' && (
+                <div>
+                  <h3 className="font-medium mb-3">Pulse — Opportunity Engine</h3>
+                  <div className="space-y-2 text-sm">
+                    <div className="p-3 border rounded">🌧️ Perfect weather for your saved hike at Badger Mountain (2h window)</div>
+                    <div className="p-3 border rounded">🎟️ Limited spots: Sacagawea Sunset Tour tonight</div>
+                    <div className="p-3 border rounded">📍 Dream List item nearby: Columbia River viewpoint</div>
+                  </div>
+                  <p className="text-xs mt-3 text-muted-foreground">Phase 1 structure. Real data + existing pulse alerts would power this.</p>
+                </div>
+              )}
+
+              {openSheet === 'people' && (
+                <div>
+                  <h3 className="font-medium mb-3">People — Experience Community</h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 p-2 border rounded">
+                      <div className="w-8 h-8 rounded-full bg-muted" />
+                      <div className="text-sm">Alex shared a new viewpoint on Badger Mountain</div>
+                    </div>
+                    <div className="flex items-center gap-3 p-2 border rounded">
+                      <div className="w-8 h-8 rounded-full bg-muted" />
+                      <div className="text-sm">Sam's family adventure at the river this weekend</div>
+                    </div>
+                  </div>
+                  <p className="text-xs mt-3 text-muted-foreground">Placeholder. Connect through real shared experiences (future graph).</p>
+                </div>
+              )}
+            </div>
           </div>
-          <p className="mt-1 text-[11px] opacity-80">
-            Your memories belong to you. Your adventures belong to you. You can export or delete your data at any time.
-          </p>
+        )}
+
+        {/* Reduced footer on map home for less clutter; full Trust Center elsewhere. All legal still accessible. */}
+        <footer className="border-t border-border bg-card px-4 py-2 text-[10px] text-muted-foreground">
+          {isMapHome ? (
+            <p className="text-center opacity-70">
+              Your memories belong to you. Your adventures belong to you.
+            </p>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 justify-center">
+                <Link to="/privacy-policy" className="hover:text-foreground hover:underline">Privacy Policy</Link>
+                <Link to="/terms-of-service" className="hover:text-foreground hover:underline">Terms of Service</Link>
+                <Link to="/community-guidelines" className="hover:text-foreground hover:underline">Community Guidelines</Link>
+                <Link to="/data-requests" className="hover:text-foreground hover:underline">Data Requests</Link>
+                <a href="mailto:support@xnext.example" className="hover:text-foreground hover:underline">Contact Support</a>
+                <Link to="/philosophy" className="hover:text-foreground hover:underline">Product Philosophy</Link>
+              </div>
+              <p className="mt-1 text-center text-[10px] opacity-70">
+                Your memories belong to you. Your adventures belong to you. You can export or delete your data at any time.
+              </p>
+            </>
+          )}
         </footer>
       </div>
     </div>

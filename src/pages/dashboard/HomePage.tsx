@@ -21,10 +21,8 @@ import type { LatLng } from '../../components/map/types'
 import { MAPS_API_KEY, FALLBACK_CENTER } from '../../components/map/mapsConfig'
 
 /**
- * Dashboard home — map-background Today experience (world as homepage).
- * Real data previews for Active Pulse (top 3), Saved Dream List (top 3 saved),
+ * Dashboard home — real data previews for Active Pulse (top 3), Saved Dream List (top 3 saved),
  * and Discover Quests (top 3 published). Partial section failures are tolerated.
- * Re-applied / restored for live deployment.
  */
 export function HomePage() {
   // Preview data (top 3 from each source)
@@ -44,7 +42,6 @@ export function HomePage() {
   const {
     position: userPosition,
     status: locationStatus,
-    error: locationError,
     request: requestLocation,
   } = useUserLocation()
 
@@ -122,8 +119,8 @@ export function HomePage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {/* Map hero background (world layer) + floating Today overlay */}
-      <div className="relative h-[52vh] min-h-[300px] w-full overflow-hidden border-b border-border bg-muted">
+      {/* Map hero background (world layer) — taller for visibility at all times */}
+      <div className="relative h-[65vh] min-h-[340px] w-full overflow-hidden border-b border-border bg-muted">
         {MAPS_API_KEY ? (
           <MapErrorBoundary>
             <APIProvider apiKey={MAPS_API_KEY} libraries={['marker']}>
@@ -161,75 +158,50 @@ export function HomePage() {
           </div>
         )}
 
-        {/* Floating glass overlay — Today experience + core loop actions */}
-        <div className="absolute inset-x-3 bottom-3 z-10 md:inset-x-6 md:bottom-6 lg:left-6 lg:right-auto lg:w-[400px]">
-          <div className="rounded-2xl border border-white/15 bg-black/75 backdrop-blur-2xl p-5 text-white shadow-2xl">
+        {/* Floating glass overlay — reduced opacity so map shows through (clean Phase 1) */}
+        <div className="absolute inset-x-3 bottom-3 z-10 md:inset-x-4 md:bottom-4 lg:left-4 lg:right-auto lg:w-[360px]">
+          <div className="rounded-2xl border border-white/10 bg-black/50 backdrop-blur-xl p-4 text-white shadow-xl text-sm">
             <div>
               <div className="text-3xl font-bold tracking-tighter">Today</div>
               <div className="text-sm -mt-1 opacity-80">What might happen next?</div>
             </div>
 
-            {/* Compact real Adventure Radar status card */}
-            <div className="mt-3 rounded-xl bg-white/10 p-3 text-sm">
-              <div className="flex items-baseline justify-between">
-                <span className="font-medium tracking-wide">Adventure Radar</span>
+            {/* Cleaner, more readable Adventure Radar card (orange accent, tighter) */}
+            <div className="mt-2.5 rounded-lg bg-white/8 p-2.5 border border-white/10">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-medium tracking-wide text-orange-300">Adventure Radar</span>
                 <span className="font-mono text-xs opacity-75">{HERO_RADIUS_KM} km</span>
               </div>
-              <div className="mt-1 text-lg font-semibold tabular-nums">
-                {radarQuests.length} real quests found
+              <div className="mt-0.5 text-base font-semibold tabular-nums text-orange-200">
+                {radarQuests.length} real experiences nearby
               </div>
-              <div className="mt-0.5 text-[11px] opacity-75">
+              <div className="mt-0.5 text-[10px] opacity-70">
                 {locationLabel}
-                {locationError ? ` • ${locationError}` : ''}
               </div>
 
               {(locationStatus !== 'active' && locationStatus !== 'locating') && (
                 <button
                   onClick={requestLocation}
-                  className="mt-2 inline-block rounded-md border border-white/30 px-2.5 py-0.5 text-[11px] hover:bg-white/10 active:bg-white/20"
+                  className="mt-1.5 text-[10px] underline hover:no-underline text-orange-300"
                 >
-                  Enable location for personalized view
+                  Enable location to see what's next around you
                 </button>
               )}
             </div>
 
-            {/* Quick actions — Discover → Save → Pulse → ... loop */}
-            <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
-              <Link
-                to="/dashboard/map"
-                className="rounded-lg bg-white px-3 py-2 text-center font-semibold text-black shadow hover:bg-white/95 active:scale-[0.985]"
-              >
-                Explore Map
-              </Link>
-              <Link
-                to="/dashboard/preferences"
-                className="rounded-lg border border-white/30 px-3 py-2 text-center font-medium hover:bg-white/10"
-              >
-                Set Preferences
-              </Link>
-              <Link
-                to="/dashboard/pulse"
-                className="rounded-lg border border-white/30 px-3 py-2 text-center font-medium hover:bg-white/10"
-              >
-                View Pulse
-              </Link>
-              <Link
-                to="/dashboard/dream-list"
-                className="rounded-lg border border-white/30 px-3 py-2 text-center font-medium hover:bg-white/10"
-              >
-                Dream List
-              </Link>
-            </div>
-
-            <div className="mt-2 text-[10px] opacity-60 text-center">
-              Map = world • Pulse = alerts • Dream List = intent • Opportunities = discover
+            {/* Quick actions as overlays (Discover → Save → Pulse loop) — compact */}
+            <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
+              <Link to="/dashboard/map" className="rounded-md bg-white/90 py-1.5 text-center font-semibold text-black active:bg-white">Explore Map</Link>
+              <Link to="/dashboard/preferences" className="rounded-md border border-white/25 py-1.5 text-center hover:bg-white/10">Preferences</Link>
+              <Link to="/dashboard/pulse" className="rounded-md border border-white/25 py-1.5 text-center hover:bg-white/10">Pulse</Link>
+              <Link to="/dashboard/dream-list" className="rounded-md border border-white/25 py-1.5 text-center hover:bg-white/10">Dream List</Link>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Below-hero content: real service previews (preserved exactly) + improved honest empty states */}
-      <div className="mx-auto max-w-5xl px-4 py-8 space-y-8">
+      {/* Compact preview cards below hero (kept as cards/overlays feel; reduced spacing for mobile so map remains prominent) */}
+      <div className="mx-auto max-w-5xl px-3 py-4 space-y-4 text-sm">
         {loading && <LoadingState message="Loading your previews…" />}
 
         {!loading && error && (
