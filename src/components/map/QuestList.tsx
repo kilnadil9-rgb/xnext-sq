@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { formatDistance } from '../../lib/distance'
 import {
   RADAR_SORT_OPTIONS,
@@ -15,6 +16,9 @@ interface Props {
   onSortChange: (mode: RadarSortMode) => void
   onSelect: (quest: RankedQuest) => void
   onRetry?: () => void
+  /** Widen the search radius to the next option (hidden when already at max). */
+  onWiden?: () => void
+  canWiden?: boolean
 }
 
 /** Adventure Radar list: ranked nearby quests beside/below the map. */
@@ -28,6 +32,8 @@ export function QuestList({
   onSortChange,
   onSelect,
   onRetry,
+  onWiden,
+  canWiden = false,
 }: Props) {
   return (
     <section className="radar-list" aria-label="Nearby quests">
@@ -79,10 +85,29 @@ export function QuestList({
 
       {!loading && !error && quests.length === 0 && (
         <div className="radar-list__state">
-          <p>No quests within {formatDistance(radiusKm * 1000)}.</p>
+          <div className="radar-list__state-icon" aria-hidden="true">🧭</div>
+          <p>No XNEXT quests within {formatDistance(radiusKm * 1000)} yet.</p>
           <p className="radar-list__detail">
-            Widen the radius or pan the map to explore further.
+            This corner of the map is uncharted. Widen your radius, pan
+            somewhere new, or be the first to put a discovery here.
           </p>
+          <div className="radar-list__actions">
+            {canWiden && onWiden && (
+              <button
+                type="button"
+                className="radar-list__cta-ghost"
+                onClick={onWiden}
+              >
+                Widen radius
+              </button>
+            )}
+            <Link
+              to="/dashboard/quests/new"
+              className="radar-list__cta-primary"
+            >
+              Add a discovery
+            </Link>
+          </div>
         </div>
       )}
 

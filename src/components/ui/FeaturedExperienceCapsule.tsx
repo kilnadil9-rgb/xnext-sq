@@ -97,10 +97,10 @@ export function FeaturedExperienceCapsule({
             ) : isActive ? (
               <>
                 <div className="text-white/70 text-sm font-semibold mt-0.5">
-                  Nothing here yet
+                  No quests nearby yet
                 </div>
                 <div className="text-white/40 text-xs mt-0.5">
-                  Be the first to add one
+                  Add the first discovery here
                 </div>
               </>
             ) : (

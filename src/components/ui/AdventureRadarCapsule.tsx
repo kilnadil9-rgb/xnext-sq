@@ -68,8 +68,13 @@ export function AdventureRadarCapsule({
               ? 'Finding your location…'
               : questCount > 0
                 ? `${questCount} Experience${questCount !== 1 ? 's' : ''} Nearby`
-                : 'Scanning for adventures…'}
+                : 'No quests nearby yet'}
         </div>
+        {!needsLocation && !isLocating && questCount === 0 && (
+          <div className="text-[11px] text-white/45 mt-0.5 leading-tight">
+            Add the first discovery
+          </div>
+        )}
       </div>
 
       {/* Right side: LIVE badge when active, or Enable button when denied */}

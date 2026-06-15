@@ -210,10 +210,12 @@ export function DashboardLayout() {
       >
         {/* Brand */}
         <div className="flex h-16 items-center gap-3 border-b border-border px-4">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-            SQ
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-xs font-black tracking-tight text-primary-foreground shadow-[0_0_16px_rgba(249,115,22,0.45)]">
+            XN
           </div>
-          <span className="font-semibold text-foreground">XNext</span>
+          <span className="font-bold tracking-[1.5px] text-foreground">
+            XNEXT
+          </span>
         </div>
 
         {/* Org switcher */}
@@ -292,8 +294,16 @@ export function DashboardLayout() {
           </header>
         )}
 
-        {/* Page content: full for map home (child provides full map + overlays), padded for other pages */}
-        <main className={`flex-1 overflow-hidden relative ${isMapHome ? '' : 'p-4 lg:p-6'}`}>
+        {/* Page content: full for map home (child provides full map + overlays),
+            scrollable + padded + safe-area aware for other pages */}
+        <main
+          className={`relative flex-1 ${
+            isMapHome
+              ? 'overflow-hidden'
+              : 'overflow-y-auto p-4 text-left lg:p-6'
+          }`}
+          style={isMapHome ? undefined : { paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}
+        >
           <Outlet />
         </main>
 
@@ -452,7 +462,7 @@ export function DashboardLayout() {
                   </form>
 
                   <p className="text-[11px] text-white/40 mt-3 text-center">
-                    Submissions are reviewed before going live. Location uses your position (or area fallback).
+                    Submissions are reviewed before going live. We use your current location to place the pin on the map.
                   </p>
                 </div>
               )}
@@ -477,36 +487,52 @@ export function DashboardLayout() {
                 </div>
               )}
 
-              {/* P2: Pulse — real-looking cards, no "Phase 1 structure" note */}
+              {/* Pulse — preview of the Opportunity Engine (clearly labelled examples) */}
               {openSheet === 'pulse' && (
                 <div>
-                  <h3 className="font-medium mb-3 text-white">Pulse — Opportunity Engine</h3>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="font-semibold text-white">Pulse — Opportunity Engine</h3>
+                    <span className="rounded-full border border-[#fde047]/30 bg-[#fde047]/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-[#fde047]">
+                      Preview
+                    </span>
+                  </div>
+                  <p className="mb-3 text-xs text-white/45">
+                    Examples of the time-sensitive nudges Pulse will surface once it's live.
+                  </p>
                   <div className="space-y-2 text-sm">
-                    <div className="p-3 border border-white/10 bg-white/5 rounded text-white/80">
-                      🌧️ Perfect weather for your saved hike at Badger Mountain (2h window)
+                    <div className="p-3 border border-white/10 bg-white/5 rounded text-white/70">
+                      🌧️ Perfect weather window for a saved hike (example)
                     </div>
-                    <div className="p-3 border border-white/10 bg-white/5 rounded text-white/80">
-                      🎟️ Limited spots: Sacagawea Sunset Tour tonight
+                    <div className="p-3 border border-white/10 bg-white/5 rounded text-white/70">
+                      🎟️ Limited spots on a nearby sunset tour tonight (example)
                     </div>
-                    <div className="p-3 border border-white/10 bg-white/5 rounded text-white/80">
-                      📍 Dream List item nearby: Columbia River viewpoint
+                    <div className="p-3 border border-white/10 bg-white/5 rounded text-white/70">
+                      📍 A Dream List item just came within range (example)
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* P2: People — activity feed, no "Placeholder" note */}
+              {/* People — preview of the community feed (clearly labelled examples) */}
               {openSheet === 'people' && (
                 <div>
-                  <h3 className="font-medium mb-3 text-white">People — Experience Community</h3>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="font-semibold text-white">People — Experience Community</h3>
+                    <span className="rounded-full border border-[#fde047]/30 bg-[#fde047]/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-[#fde047]">
+                      Preview
+                    </span>
+                  </div>
+                  <p className="mb-3 text-xs text-white/45">
+                    Example activity — the community feed turns on as more explorers join.
+                  </p>
                   <div className="space-y-3">
                     <div className="flex items-center gap-3 p-2 border border-white/10 bg-white/5 rounded">
                       <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0" />
-                      <div className="text-sm text-white/80">Alex shared a new viewpoint on Badger Mountain</div>
+                      <div className="text-sm text-white/70">Someone shared a new viewpoint nearby (example)</div>
                     </div>
                     <div className="flex items-center gap-3 p-2 border border-white/10 bg-white/5 rounded">
                       <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0" />
-                      <div className="text-sm text-white/80">Sam's family adventure at the river this weekend</div>
+                      <div className="text-sm text-white/70">A family adventure was logged this weekend (example)</div>
                     </div>
                   </div>
                 </div>
@@ -517,7 +543,10 @@ export function DashboardLayout() {
 
         {/* Footer: hidden on map home (reduced text can live in radar frame or bottom nav if needed); full on other pages. Admin preserved in hamburger. */}
         {!isMapHome && (
-          <footer className="border-t border-border bg-card px-4 py-2 text-[10px] text-muted-foreground">
+          <footer
+            className="border-t border-border bg-card px-4 py-2 text-[10px] text-muted-foreground"
+            style={{ paddingBottom: 'calc(0.5rem + env(safe-area-inset-bottom))' }}
+          >
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 justify-center">
               <Link to="/privacy-policy" className="hover:text-foreground hover:underline">Privacy Policy</Link>
               <Link to="/terms-of-service" className="hover:text-foreground hover:underline">Terms of Service</Link>

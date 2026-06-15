@@ -17,11 +17,11 @@ export function AuthLayout({ children, title, subtitle }: AuthLayoutProps) {
     <div className="flex min-h-screen flex-col items-center justify-center bg-background px-4 py-12">
       {/* Logo / Brand */}
       <div className="mb-8 flex flex-col items-center gap-2">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-lg font-bold text-primary-foreground">
-          SQ
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-sm font-black tracking-tight text-primary-foreground shadow-[0_0_20px_rgba(249,115,22,0.5)]">
+          XN
         </div>
-        <span className="text-sm font-semibold tracking-widest text-muted-foreground uppercase">
-          XNext
+        <span className="text-sm font-semibold tracking-[2px] text-muted-foreground uppercase">
+          XNEXT
         </span>
       </div>
 

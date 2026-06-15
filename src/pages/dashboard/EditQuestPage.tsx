@@ -72,7 +72,7 @@ export function EditQuestPage() {
 
       {saveError && (
         <p
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300"
           role="alert"
         >
           {saveError}

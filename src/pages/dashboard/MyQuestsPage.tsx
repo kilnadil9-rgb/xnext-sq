@@ -6,10 +6,10 @@ import { LoadingState } from '../../components/ui/LoadingState'
 import { ErrorState } from '../../components/ui/ErrorState'
 
 const STATUS_STYLES: Record<QuestStatus, string> = {
-  draft: 'bg-gray-100 text-gray-700',
-  pending_review: 'bg-amber-100 text-amber-800',
-  published: 'bg-emerald-100 text-emerald-800',
-  archived: 'bg-slate-100 text-slate-500',
+  draft: 'bg-white/10 text-white/60 border border-white/15',
+  pending_review: 'bg-amber-500/15 text-amber-300 border border-amber-500/30',
+  published: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30',
+  archived: 'bg-white/5 text-muted-foreground border border-white/10',
 }
 
 /** /dashboard/quests/mine — manage your own quests (publish / edit / archive). */
@@ -71,7 +71,7 @@ export function MyQuestsPage() {
 
       {actionError && (
         <p
-          className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300"
           role="alert"
         >
           {actionError}

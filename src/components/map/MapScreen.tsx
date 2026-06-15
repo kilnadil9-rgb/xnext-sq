@@ -269,6 +269,16 @@ function RadarScreen() {
   const handleRouteError = useCallback((m: string) => setRouteError(m), [])
   const handleRetry = useCallback(() => setRefreshKey((k) => k + 1), [])
 
+  // Widen the search radius to the next larger preset (used by empty-state CTA).
+  const canWiden = radiusKm < RADIUS_OPTIONS_KM[RADIUS_OPTIONS_KM.length - 1]
+  const handleWiden = useCallback(() => {
+    setRadiusTouched(true)
+    setRadiusKm((current) => {
+      const next = RADIUS_OPTIONS_KM.find((r) => r > current)
+      return next ?? current
+    })
+  }, [])
+
   if (apiStatus === APILoadingStatus.FAILED) {
     return (
       <div className="map-fallback" role="alert">
@@ -428,6 +438,8 @@ function RadarScreen() {
         onSortChange={setSortMode}
         onSelect={handleSelectQuest}
         onRetry={handleRetry}
+        onWiden={handleWiden}
+        canWiden={canWiden}
       />
     </div>
   )

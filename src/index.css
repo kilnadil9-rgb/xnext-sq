@@ -5,12 +5,12 @@
 @theme inline {
   --color-background: var(--bg);
   --color-foreground: var(--text-h);
-  --color-card: var(--bg);
+  --color-card: var(--surface);
   --color-card-foreground: var(--text-h);
-  --color-popover: var(--bg);
+  --color-popover: var(--surface);
   --color-popover-foreground: var(--text-h);
   --color-primary: var(--accent);
-  --color-primary-foreground: #fff;
+  --color-primary-foreground: var(--accent-foreground);
   --color-muted: var(--code-bg);
   --color-muted-foreground: var(--text);
   --color-accent: var(--accent-bg);
@@ -22,18 +22,28 @@
   --color-ring: var(--accent);
 }
 
+/* ── XNEXT — single dark premium theme ───────────────────────────────────
+   The whole app shares one dark, orange-accented identity (matching the
+   map Home + bottom nav). Not gated on prefers-color-scheme so the premium
+   look is consistent on every page and device.                            */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
+  --text: #9aa1ad;            /* muted body / secondary text */
+  --text-h: #f4f5f7;          /* headings / high-contrast text */
+  --bg: #0b0c11;              /* deep app background */
+  --surface: #16171d;         /* elevated cards / panels */
+  --surface-2: #1d1f27;       /* inputs / nested surfaces */
+  --border: #2a2c36;          /* hairline borders */
+  --code-bg: #1c1e26;
+
+  /* XNEXT brand accent — orange + amber */
+  --accent: #f97316;
+  --accent-foreground: #14100a; /* dark text on orange buttons */
+  --accent-bg: rgba(249, 115, 22, 0.14);
+  --accent-border: rgba(249, 115, 22, 0.5);
+  --amber: #fde047;
+  --social-bg: rgba(47, 48, 58, 0.5);
   --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+    rgba(0, 0, 0, 0.5) 0 10px 15px -3px, rgba(0, 0, 0, 0.3) 0 4px 6px -2px;
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -41,7 +51,7 @@
 
   font: 18px/145% var(--sans);
   letter-spacing: 0.18px;
-  color-scheme: light dark;
+  color-scheme: dark;
   color: var(--text);
   background: var(--bg);
   font-synthesis: none;
@@ -51,26 +61,6 @@
 
   @media (max-width: 1024px) {
     font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
   }
 }
 
@@ -88,6 +78,25 @@
 
 body {
   margin: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Premium dark scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(249, 115, 22, 0.3) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(249, 115, 22, 0.28);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(249, 115, 22, 0.45);
 }
 
 /* ── XNEXT Phase 1.6 — Adventure animations ─────────────────────────────── */

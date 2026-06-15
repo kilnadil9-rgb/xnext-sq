@@ -234,7 +234,10 @@ export function QuestForm({
       </div>
 
       {validationError && (
-        <p className="text-sm text-red-600" role="alert">
+        <p
+          className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300"
+          role="alert"
+        >
           {validationError}
         </p>
       )}
