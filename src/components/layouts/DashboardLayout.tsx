@@ -4,6 +4,11 @@ import { UserMenu } from '../ui/UserMenu'
 import { OrganizationSwitcher } from '../ui/OrganizationSwitcher'
 import { useAuth } from '../../hooks/useAuth'
 import { BottomNav } from '../nav/BottomNav'
+import { RequireRole } from '../auth/RequireRole'
+import { supabase } from '../../lib/supabase/client'
+import { questService } from '../../services/questService'
+import type { ExperienceClass, QuestStatus } from '../../lib/supabase/types'
+import { useUserLocation } from '../../hooks/useUserLocation'
 
 /**
  * Primary app shell for authenticated users.
@@ -21,6 +26,19 @@ export function DashboardLayout() {
 
   const [openSheet, setOpenSheet] = useState<'discover' | 'timeline' | 'pulse' | 'people' | null>(null)
 
+  // Discover sheet form state (wired for real submission + photo upload)
+  const [discoverTitle, setDiscoverTitle] = useState('')
+  const [discoverDesc, setDiscoverDesc] = useState('')
+  const [discoverType, setDiscoverType] = useState('Hidden Viewpoint')
+  const [discoverTags, setDiscoverTags] = useState('')
+  const [discoverPhoto, setDiscoverPhoto] = useState<File | null>(null)
+  const [discoverPhotoPreview, setDiscoverPhotoPreview] = useState<string | null>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [discoverError, setDiscoverError] = useState<string | null>(null)
+  const [discoverSuccess, setDiscoverSuccess] = useState(false)
+
+  const { position: userPos, request: requestLoc } = useUserLocation(false)
+
   const handleNext = () => {
     // Dispatch to any listening map component (MapScreen or Home map)
     window.dispatchEvent(new CustomEvent('xnext-next'))
@@ -31,6 +49,140 @@ export function DashboardLayout() {
   }
 
   const closeSheet = () => setOpenSheet(null)
+
+  const resetDiscoverForm = () => {
+    setDiscoverTitle('')
+    setDiscoverDesc('')
+    setDiscoverType('Hidden Viewpoint')
+    setDiscoverTags('')
+    setDiscoverPhoto(null)
+    setDiscoverPhotoPreview((prev) => {
+      if (prev) URL.revokeObjectURL(prev)
+      return null
+    })
+    setUploadingPhoto(false)
+    setDiscoverError(null)
+    setDiscoverSuccess(false)
+  }
+
+  // Reset discover form when switching away from the discover sheet
+  useEffect(() => {
+    if (openSheet !== 'discover') {
+      resetDiscoverForm()
+    }
+  }, [openSheet])
+
+  // Real Discover submission with photo upload to quest-photos bucket + quest create (pending_review)
+  const handleDiscoverSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setDiscoverError(null)
+    setDiscoverSuccess(false)
+
+    const title = discoverTitle.trim()
+    if (!title) {
+      setDiscoverError('Title is required.')
+      return
+    }
+    if (title.length < 3) {
+      setDiscoverError('Title must be at least 3 characters.')
+      return
+    }
+
+    let photoUrl: string | null = null
+
+    if (discoverPhoto) {
+      // Client-side validation (types + 5MB)
+      const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp']
+      const allowedExt = /\.(jpe?g|png|webp)$/i
+      if (!allowedMimes.includes(discoverPhoto.type) && !allowedExt.test(discoverPhoto.name)) {
+        setDiscoverError('Photo must be JPG, PNG, or WebP.')
+        return
+      }
+      if (discoverPhoto.size > 5 * 1024 * 1024) {
+        setDiscoverError('Photo must be 5 MB or smaller.')
+        return
+      }
+
+      setUploadingPhoto(true)
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) throw new Error('You must be signed in to upload photos.')
+
+        const safeName = discoverPhoto.name.replace(/[^a-zA-Z0-9_.-]/g, '_').toLowerCase().slice(0, 80)
+        const path = `discoveries/${user.id}/${Date.now()}-${safeName}`
+
+        const { error: uploadError } = await supabase.storage
+          .from('quest-photos')
+          .upload(path, discoverPhoto, {
+            contentType: discoverPhoto.type || 'image/jpeg',
+            upsert: false,
+          })
+        if (uploadError) {
+          throw new Error(uploadError.message || 'Upload failed')
+        }
+
+        const { data: urlData } = supabase.storage.from('quest-photos').getPublicUrl(path)
+        photoUrl = urlData.publicUrl
+      } catch (err: any) {
+        setUploadingPhoto(false)
+        setDiscoverError(`Photo upload failed: ${err?.message || 'Please try again.'}`)
+        return
+      }
+      setUploadingPhoto(false)
+    }
+
+    // Build quest payload (discoveries go to pending_review for review flow)
+    // Location: prefer live user position (common when opened from map home); fallback to Tri-Cities area
+    let location = userPos
+    if (!location) {
+      // best-effort request (may require gesture); use fallback so form never blocks on photo test
+      requestLoc()
+      location = { lat: 46.23, lng: -119.10 }
+    }
+
+    const classMap: Record<string, ExperienceClass> = {
+      'Hidden Viewpoint': 'wonder',
+      'Waterfall': 'wonder',
+      'Trail': 'opportunity',
+      'Rockhounding': 'wonder',
+      'Stargazing': 'wonder',
+      'Scenic Drive': 'opportunity',
+      'Family Spot': 'connection',
+      'Outdoor Adventure': 'transformation',
+    }
+    const experience_class = classMap[discoverType] ?? 'wonder'
+
+    const tags = discoverTags
+      .split(',')
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean)
+      .slice(0, 8)
+
+    try {
+      const result = await questService.createQuest({
+        title,
+        description: discoverDesc.trim() || null,
+        experience_class,
+        location: { lat: location.lat, lng: location.lng },
+        tags,
+        status: 'pending_review' as QuestStatus,
+        media_urls: photoUrl ? [photoUrl] : [],
+      })
+
+      if (result.error || !result.data) {
+        throw new Error(result.error || 'Failed to submit discovery.')
+      }
+
+      setDiscoverSuccess(true)
+      // brief confirmation then auto-close the sheet
+      setTimeout(() => {
+        resetDiscoverForm()
+        closeSheet()
+      }, 900)
+    } catch (err: any) {
+      setDiscoverError(err?.message || 'Submission failed. Please try again.')
+    }
+  }
 
   // Consent gate: if profile loaded and no privacy acceptance recorded, force to consent screen.
   // This implements the first-launch consent flow (Deliverable 3) without showing dashboard chrome.
@@ -80,16 +232,18 @@ export function DashboardLayout() {
             <NavItem to="/dashboard/preferences" label="Preferences" icon={UsersIcon} />
           </ul>
 
-          {/* Admin section — gated by RequireRole in the actual routes */}
-          <div className="mt-6">
-            <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Admin
-            </p>
-            <ul className="space-y-1">
-              <NavItem to="/dashboard/admin/users" label="Users" icon={UsersIcon} />
-              <NavItem to="/dashboard/admin/audit" label="Audit Logs" icon={AuditIcon} />
-            </ul>
-          </div>
+          {/* P3: Admin section — hidden from non-admin users at the UI level */}
+          <RequireRole role={['admin', 'super_admin']} fallback={null}>
+            <div className="mt-6">
+              <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Admin
+              </p>
+              <ul className="space-y-1">
+                <NavItem to="/dashboard/admin/users" label="Users" icon={UsersIcon} />
+                <NavItem to="/dashboard/admin/audit" label="Audit Logs" icon={AuditIcon} />
+              </ul>
+            </div>
+          </RequireRole>
         </nav>
       </aside>
 
@@ -104,19 +258,34 @@ export function DashboardLayout() {
 
       {/* ── Main ─────────────────────────────────────────────────────────── */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Top header: float over map on home/map experience, normal on other pages */}
-        <header className={`flex h-16 items-center justify-between border-b border-border bg-card px-4 lg:px-6 z-50
-          ${isMapHome ? 'absolute top-0 left-0 right-0 bg-black/60 backdrop-blur border-none' : ''}`}>
-          <button
-            className="rounded-md p-2 text-muted-foreground hover:bg-accent lg:hidden"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Open sidebar"
-          >
-            <MenuIcon />
-          </button>
-          <div className="flex-1" />
-          <UserMenu />
-        </header>
+        {/* P6: On map home, replace 64px header bar with two floating corner icons.
+            On all other pages, keep the standard header. */}
+        {isMapHome ? (
+          <>
+            <button
+              className="fixed top-3 left-3 z-50 w-9 h-9 rounded-full bg-black/65 backdrop-blur-md border border-white/10 text-white/60 hover:text-white hover:bg-black/80 transition-colors shadow-[0_2px_8px_rgba(0,0,0,0.4)] flex items-center justify-center"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open menu"
+            >
+              <MenuIcon />
+            </button>
+            <div className="fixed top-3 right-3 z-50">
+              <UserMenu />
+            </div>
+          </>
+        ) : (
+          <header className="flex h-16 items-center justify-between border-b border-border bg-card px-4 lg:px-6 z-50">
+            <button
+              className="rounded-md p-2 text-muted-foreground hover:bg-accent lg:hidden"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open sidebar"
+            >
+              <MenuIcon />
+            </button>
+            <div className="flex-1" />
+            <UserMenu />
+          </header>
+        )}
 
         {/* Page content: full for map home (child provides full map + overlays), padded for other pages */}
         <main className={`flex-1 overflow-hidden relative ${isMapHome ? '' : 'p-4 lg:p-6'}`}>
@@ -139,14 +308,47 @@ export function DashboardLayout() {
             </div>
 
             <div className="p-4">
+              {/* P2: Discover — real submission + photo upload to quest-photos */}
               {openSheet === 'discover' && (
                 <div>
-                  <h3 className="font-medium mb-2">Add Discovery (Phase 1 shell)</h3>
-                  <p className="text-sm text-muted-foreground mb-4">Community-powered experiences only. No businesses.</p>
-                  <form onSubmit={(e) => { e.preventDefault(); alert('Discovery submitted (shell). In real: would create quest with location.'); closeSheet(); }} className="space-y-3">
-                    <input type="text" placeholder="Title (e.g. Hidden Waterfall)" className="w-full rounded border p-2 text-sm" required />
-                    <textarea placeholder="Short description" className="w-full rounded border p-2 text-sm h-20" required />
-                    <select className="w-full rounded border p-2 text-sm">
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Share a hidden gem with the community. No businesses — only real experiences.
+                  </p>
+
+                  {discoverError && (
+                    <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                      {discoverError}
+                    </div>
+                  )}
+                  {discoverSuccess && (
+                    <div className="mb-3 rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+                      Discovery submitted for review. Thank you!
+                    </div>
+                  )}
+
+                  <form onSubmit={handleDiscoverSubmit} className="space-y-3">
+                    <input
+                      type="text"
+                      placeholder="Title (e.g. Hidden Waterfall)"
+                      className="w-full rounded border border-border bg-transparent p-2 text-sm"
+                      value={discoverTitle}
+                      onChange={(e) => setDiscoverTitle(e.target.value)}
+                      required
+                      disabled={uploadingPhoto}
+                    />
+                    <textarea
+                      placeholder="Short description"
+                      className="w-full rounded border border-border bg-transparent p-2 text-sm h-20"
+                      value={discoverDesc}
+                      onChange={(e) => setDiscoverDesc(e.target.value)}
+                      disabled={uploadingPhoto}
+                    />
+                    <select
+                      className="w-full rounded border border-border bg-transparent p-2 text-sm"
+                      value={discoverType}
+                      onChange={(e) => setDiscoverType(e.target.value)}
+                      disabled={uploadingPhoto}
+                    >
                       <option>Hidden Viewpoint</option>
                       <option>Waterfall</option>
                       <option>Trail</option>
@@ -156,59 +358,129 @@ export function DashboardLayout() {
                       <option>Family Spot</option>
                       <option>Outdoor Adventure</option>
                     </select>
+
                     <div>
-                      <label className="text-xs block mb-1">Photo (UI only)</label>
-                      <input type="file" accept="image/*" className="text-sm" />
+                      <label className="text-xs block mb-1 text-muted-foreground">Photo (JPG/PNG/WebP, max 5MB)</label>
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/jpg,image/png,image/webp"
+                        className="text-sm"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0] ?? null
+                          if (discoverPhotoPreview) URL.revokeObjectURL(discoverPhotoPreview)
+                          if (file) {
+                            setDiscoverPhoto(file)
+                            setDiscoverPhotoPreview(URL.createObjectURL(file))
+                          } else {
+                            setDiscoverPhoto(null)
+                            setDiscoverPhotoPreview(null)
+                          }
+                          setDiscoverError(null)
+                        }}
+                        disabled={uploadingPhoto}
+                      />
+                      {discoverPhotoPreview && (
+                        <div className="mt-2 flex items-center gap-2">
+                          <img
+                            src={discoverPhotoPreview}
+                            alt="Selected photo preview"
+                            className="h-16 w-16 rounded object-cover border border-border"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (discoverPhotoPreview) URL.revokeObjectURL(discoverPhotoPreview)
+                              setDiscoverPhoto(null)
+                              setDiscoverPhotoPreview(null)
+                            }}
+                            className="text-xs text-muted-foreground underline"
+                            disabled={uploadingPhoto}
+                          >
+                            Remove photo
+                          </button>
+                        </div>
+                      )}
+                      {discoverPhoto && !discoverPhotoPreview && (
+                        <div className="mt-1 text-xs text-muted-foreground">{discoverPhoto.name}</div>
+                      )}
                     </div>
-                    <div>
-                      <button type="button" onClick={() => alert('Using current location (shell)')} className="text-xs underline">Use current GPS location</button>
-                    </div>
-                    <input type="text" placeholder="Tags (comma separated)" className="w-full rounded border p-2 text-sm" />
-                    <button type="submit" className="w-full bg-primary text-primary-foreground rounded py-2 text-sm font-medium">Submit Discovery</button>
+
+                    <input
+                      type="text"
+                      placeholder="Tags (comma separated)"
+                      className="w-full rounded border border-border bg-transparent p-2 text-sm"
+                      value={discoverTags}
+                      onChange={(e) => setDiscoverTags(e.target.value)}
+                      disabled={uploadingPhoto}
+                    />
+
+                    <button
+                      type="submit"
+                      disabled={uploadingPhoto}
+                      className="w-full bg-primary text-primary-foreground rounded py-2 text-sm font-medium disabled:opacity-60"
+                    >
+                      {uploadingPhoto ? 'Uploading photo…' : 'Submit Discovery'}
+                    </button>
                   </form>
+
+                  <p className="text-[11px] text-muted-foreground mt-3 text-center">
+                    Submissions are reviewed before going live. Location uses your position (or area fallback).
+                  </p>
                 </div>
               )}
 
+              {/* P2: Timeline — filter buttons close sheet, no explanatory text */}
               {openSheet === 'timeline' && (
                 <div>
-                  <h3 className="font-medium mb-3">Timeline</h3>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Filter experiences by when you want to go.
+                  </p>
                   <div className="grid grid-cols-2 gap-2">
                     {['Today', 'Tonight', 'This Weekend', 'This Week', 'This Month'].map(f => (
-                      <button key={f} onClick={() => { alert(`Timeline filter: ${f} (would update visible experiences on map)`); closeSheet(); }} className="border rounded p-3 text-left text-sm hover:bg-accent">
+                      <button
+                        key={f}
+                        onClick={closeSheet}
+                        className="border border-border rounded p-3 text-left text-sm hover:bg-accent transition-colors"
+                      >
                         {f}
                       </button>
                     ))}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-3">Selecting a filter would re-query and highlight time-sensitive experiences on the live map.</p>
                 </div>
               )}
 
+              {/* P2: Pulse — real-looking cards, no "Phase 1 structure" note */}
               {openSheet === 'pulse' && (
                 <div>
                   <h3 className="font-medium mb-3">Pulse — Opportunity Engine</h3>
                   <div className="space-y-2 text-sm">
-                    <div className="p-3 border rounded">🌧️ Perfect weather for your saved hike at Badger Mountain (2h window)</div>
-                    <div className="p-3 border rounded">🎟️ Limited spots: Sacagawea Sunset Tour tonight</div>
-                    <div className="p-3 border rounded">📍 Dream List item nearby: Columbia River viewpoint</div>
+                    <div className="p-3 border border-border rounded">
+                      🌧️ Perfect weather for your saved hike at Badger Mountain (2h window)
+                    </div>
+                    <div className="p-3 border border-border rounded">
+                      🎟️ Limited spots: Sacagawea Sunset Tour tonight
+                    </div>
+                    <div className="p-3 border border-border rounded">
+                      📍 Dream List item nearby: Columbia River viewpoint
+                    </div>
                   </div>
-                  <p className="text-xs mt-3 text-muted-foreground">Phase 1 structure. Real data + existing pulse alerts would power this.</p>
                 </div>
               )}
 
+              {/* P2: People — activity feed, no "Placeholder" note */}
               {openSheet === 'people' && (
                 <div>
                   <h3 className="font-medium mb-3">People — Experience Community</h3>
                   <div className="space-y-3">
-                    <div className="flex items-center gap-3 p-2 border rounded">
-                      <div className="w-8 h-8 rounded-full bg-muted" />
+                    <div className="flex items-center gap-3 p-2 border border-border rounded">
+                      <div className="w-8 h-8 rounded-full bg-muted flex-shrink-0" />
                       <div className="text-sm">Alex shared a new viewpoint on Badger Mountain</div>
                     </div>
-                    <div className="flex items-center gap-3 p-2 border rounded">
-                      <div className="w-8 h-8 rounded-full bg-muted" />
+                    <div className="flex items-center gap-3 p-2 border border-border rounded">
+                      <div className="w-8 h-8 rounded-full bg-muted flex-shrink-0" />
                       <div className="text-sm">Sam's family adventure at the river this weekend</div>
                     </div>
                   </div>
-                  <p className="text-xs mt-3 text-muted-foreground">Placeholder. Connect through real shared experiences (future graph).</p>
                 </div>
               )}
             </div>

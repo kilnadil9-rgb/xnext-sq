@@ -55,6 +55,10 @@ export interface CreateQuestInput {
   country_code?: string | null
   tags?: string[]
   external_url?: string | null
+  /** Optional media (photo URLs etc). Saved to media_urls column. */
+  media_urls?: string[]
+  /** Allow discover flow etc to start as pending_review instead of draft. */
+  status?: QuestStatus
 }
 
 export interface UpdateQuestInput {
@@ -314,9 +318,9 @@ export const questService = {
       tags: input.tags ?? [],
       is_sponsored: false,
       sponsor_id: null,
-      media_urls: [],
+      media_urls: input.media_urls ?? [],
       external_url: input.external_url?.trim() || null,
-      status: 'draft' as QuestStatus,
+      status: (input.status ?? 'draft') as QuestStatus,
       expires_at: null,
       metadata: {},
     }
