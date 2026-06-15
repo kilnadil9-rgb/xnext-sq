@@ -43,7 +43,8 @@ export function BottomNav({ onNext, onOpenSheet }: BottomNavProps) {
 
   return (
     <nav
-      className="fixed bottom-0 left-0 right-0 z-50 flex justify-center px-3 pb-3 pt-1 pointer-events-none"
+      className="fixed bottom-0 left-0 right-0 z-50 flex justify-center px-3 pt-1 pointer-events-none"
+      style={{ paddingBottom: 'calc(0.75rem + env(safe-area-inset-bottom))' }}
       aria-label="Main navigation"
     >
       {/* Capsule container */}

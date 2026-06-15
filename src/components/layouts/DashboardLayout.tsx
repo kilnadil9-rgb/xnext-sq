@@ -197,7 +197,7 @@ export function DashboardLayout() {
       {/* ── Sidebar (persistent on non-map pages; overlay/drawer only on map home via hamburger) ───────────────── */}
       <aside
         className={`
-          fixed inset-y-0 left-0 z-40 flex w-64 flex-col border-r border-border bg-card
+          fixed inset-y-0 left-0 z-[60] flex w-64 flex-col border-r border-border bg-card
           transition-transform duration-200
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           ${isMapHome ? '' : 'lg:static lg:translate-x-0'}
@@ -250,7 +250,7 @@ export function DashboardLayout() {
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 lg:hidden"
+          className="fixed inset-0 z-[55] bg-black/40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />
@@ -269,7 +269,7 @@ export function DashboardLayout() {
             >
               <MenuIcon />
             </button>
-            <div className="fixed top-3 right-3 z-50">
+            <div className="fixed top-3 right-3 z-[70]">
               <UserMenu />
             </div>
           </>
@@ -301,9 +301,14 @@ export function DashboardLayout() {
         {/* Sheet overlays for nav items - map stays visible behind.
             Limited height, scrollable content. */}
         {openSheet && (
-          <div className="fixed inset-x-0 bottom-0 z-[60] bg-card border-t border-border rounded-t-2xl shadow-2xl max-h-[65vh] overflow-auto" role="dialog" aria-modal="true">
-            <div className="sticky top-0 bg-card border-b border-border p-4 flex items-center justify-between">
-              <span className="font-semibold text-lg capitalize">{openSheet}</span>
+          <div
+            className="fixed inset-x-0 bottom-0 z-[65] bg-[#0c1420]/96 backdrop-blur-xl border-t border-white/10 rounded-t-2xl shadow-2xl max-h-[65dvh] overflow-auto"
+            role="dialog"
+            aria-modal="true"
+            style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          >
+            <div className="sticky top-0 bg-[#0c1420]/98 backdrop-blur-xl border-b border-white/10 p-4 flex items-center justify-between">
+              <span className="font-semibold text-lg capitalize text-white">{openSheet}</span>
               <button onClick={closeSheet} className="text-2xl leading-none" aria-label="Close">×</button>
             </div>
 
@@ -311,17 +316,17 @@ export function DashboardLayout() {
               {/* P2: Discover — real submission + photo upload to quest-photos */}
               {openSheet === 'discover' && (
                 <div>
-                  <p className="text-sm text-muted-foreground mb-4">
+                  <p className="text-sm text-white/60 mb-4">
                     Share a hidden gem with the community. No businesses — only real experiences.
                   </p>
 
                   {discoverError && (
-                    <div className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700" role="alert">
+                    <div className="mb-3 rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400" role="alert">
                       {discoverError}
                     </div>
                   )}
                   {discoverSuccess && (
-                    <div className="mb-3 rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
+                    <div className="mb-3 rounded border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm text-green-400">
                       Discovery submitted for review. Thank you!
                     </div>
                   )}
@@ -330,7 +335,7 @@ export function DashboardLayout() {
                     <input
                       type="text"
                       placeholder="Title (e.g. Hidden Waterfall)"
-                      className="w-full rounded border border-border bg-transparent p-2 text-sm"
+                      className="w-full rounded border border-white/20 bg-white/5 text-white placeholder:text-white/30 p-2 text-sm"
                       value={discoverTitle}
                       onChange={(e) => setDiscoverTitle(e.target.value)}
                       required
@@ -338,13 +343,13 @@ export function DashboardLayout() {
                     />
                     <textarea
                       placeholder="Short description"
-                      className="w-full rounded border border-border bg-transparent p-2 text-sm h-20"
+                      className="w-full rounded border border-white/20 bg-white/5 text-white placeholder:text-white/30 p-2 text-sm h-20"
                       value={discoverDesc}
                       onChange={(e) => setDiscoverDesc(e.target.value)}
                       disabled={uploadingPhoto}
                     />
                     <select
-                      className="w-full rounded border border-border bg-transparent p-2 text-sm"
+                      className="w-full rounded border border-white/20 bg-[#0c1420] text-white p-2 text-sm"
                       value={discoverType}
                       onChange={(e) => setDiscoverType(e.target.value)}
                       disabled={uploadingPhoto}
@@ -360,7 +365,7 @@ export function DashboardLayout() {
                     </select>
 
                     <div>
-                      <label className="text-xs block mb-1 text-muted-foreground">Photo (JPG/PNG/WebP, max 5MB)</label>
+                      <label className="text-xs block mb-1 text-white/50">Photo (JPG/PNG/WebP, max 5MB)</label>
                       <input
                         type="file"
                         accept="image/jpeg,image/jpg,image/png,image/webp"
@@ -384,7 +389,7 @@ export function DashboardLayout() {
                           <img
                             src={discoverPhotoPreview}
                             alt="Selected photo preview"
-                            className="h-16 w-16 rounded object-cover border border-border"
+                            className="h-16 w-16 rounded object-cover border border-white/20"
                           />
                           <button
                             type="button"
@@ -393,7 +398,7 @@ export function DashboardLayout() {
                               setDiscoverPhoto(null)
                               setDiscoverPhotoPreview(null)
                             }}
-                            className="text-xs text-muted-foreground underline"
+                            className="text-xs text-white/40 underline"
                             disabled={uploadingPhoto}
                           >
                             Remove photo
@@ -401,14 +406,14 @@ export function DashboardLayout() {
                         </div>
                       )}
                       {discoverPhoto && !discoverPhotoPreview && (
-                        <div className="mt-1 text-xs text-muted-foreground">{discoverPhoto.name}</div>
+                        <div className="mt-1 text-xs text-white/40">{discoverPhoto.name}</div>
                       )}
                     </div>
 
                     <input
                       type="text"
                       placeholder="Tags (comma separated)"
-                      className="w-full rounded border border-border bg-transparent p-2 text-sm"
+                      className="w-full rounded border border-white/20 bg-white/5 text-white placeholder:text-white/30 p-2 text-sm"
                       value={discoverTags}
                       onChange={(e) => setDiscoverTags(e.target.value)}
                       disabled={uploadingPhoto}
@@ -423,7 +428,7 @@ export function DashboardLayout() {
                     </button>
                   </form>
 
-                  <p className="text-[11px] text-muted-foreground mt-3 text-center">
+                  <p className="text-[11px] text-white/40 mt-3 text-center">
                     Submissions are reviewed before going live. Location uses your position (or area fallback).
                   </p>
                 </div>
@@ -432,7 +437,7 @@ export function DashboardLayout() {
               {/* P2: Timeline — filter buttons close sheet, no explanatory text */}
               {openSheet === 'timeline' && (
                 <div>
-                  <p className="text-sm text-muted-foreground mb-3">
+                  <p className="text-sm text-white/60 mb-3">
                     Filter experiences by when you want to go.
                   </p>
                   <div className="grid grid-cols-2 gap-2">
@@ -440,7 +445,7 @@ export function DashboardLayout() {
                       <button
                         key={f}
                         onClick={closeSheet}
-                        className="border border-border rounded p-3 text-left text-sm hover:bg-accent transition-colors"
+                        className="border border-white/20 rounded p-3 text-left text-sm text-white/70 hover:bg-white/10 transition-colors"
                       >
                         {f}
                       </button>
@@ -452,15 +457,15 @@ export function DashboardLayout() {
               {/* P2: Pulse — real-looking cards, no "Phase 1 structure" note */}
               {openSheet === 'pulse' && (
                 <div>
-                  <h3 className="font-medium mb-3">Pulse — Opportunity Engine</h3>
+                  <h3 className="font-medium mb-3 text-white">Pulse — Opportunity Engine</h3>
                   <div className="space-y-2 text-sm">
-                    <div className="p-3 border border-border rounded">
+                    <div className="p-3 border border-white/10 bg-white/5 rounded text-white/80">
                       🌧️ Perfect weather for your saved hike at Badger Mountain (2h window)
                     </div>
-                    <div className="p-3 border border-border rounded">
+                    <div className="p-3 border border-white/10 bg-white/5 rounded text-white/80">
                       🎟️ Limited spots: Sacagawea Sunset Tour tonight
                     </div>
-                    <div className="p-3 border border-border rounded">
+                    <div className="p-3 border border-white/10 bg-white/5 rounded text-white/80">
                       📍 Dream List item nearby: Columbia River viewpoint
                     </div>
                   </div>
@@ -470,15 +475,15 @@ export function DashboardLayout() {
               {/* P2: People — activity feed, no "Placeholder" note */}
               {openSheet === 'people' && (
                 <div>
-                  <h3 className="font-medium mb-3">People — Experience Community</h3>
+                  <h3 className="font-medium mb-3 text-white">People — Experience Community</h3>
                   <div className="space-y-3">
-                    <div className="flex items-center gap-3 p-2 border border-border rounded">
-                      <div className="w-8 h-8 rounded-full bg-muted flex-shrink-0" />
-                      <div className="text-sm">Alex shared a new viewpoint on Badger Mountain</div>
+                    <div className="flex items-center gap-3 p-2 border border-white/10 bg-white/5 rounded">
+                      <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0" />
+                      <div className="text-sm text-white/80">Alex shared a new viewpoint on Badger Mountain</div>
                     </div>
-                    <div className="flex items-center gap-3 p-2 border border-border rounded">
-                      <div className="w-8 h-8 rounded-full bg-muted flex-shrink-0" />
-                      <div className="text-sm">Sam's family adventure at the river this weekend</div>
+                    <div className="flex items-center gap-3 p-2 border border-white/10 bg-white/5 rounded">
+                      <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0" />
+                      <div className="text-sm text-white/80">Sam's family adventure at the river this weekend</div>
                     </div>
                   </div>
                 </div>

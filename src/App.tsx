@@ -25,6 +25,7 @@ import { QuestsPage } from './pages/dashboard/QuestsPage'
 import { QuestDetailPage } from './pages/dashboard/QuestDetailPage'
 import { DreamListPage } from './pages/dashboard/DreamListPage'
 import { PulsePage } from './pages/dashboard/PulsePage'
+import { TrustPrivacyPage } from './pages/dashboard/TrustPrivacyPage'
 
 // ── Legal / Trust pages (public + consent) ────────────────────────────────────
 import { PrivacyPolicyPage } from './pages/legal/PrivacyPolicyPage'
@@ -89,6 +90,7 @@ export function App() {
               <Route path="/dashboard/completed" element={suspense(<CompletedQuestsPage />)} />
               <Route path="/dashboard/preferences" element={suspense(<PreferencesPage />)} />
               <Route path="/dashboard/pulse" element={<PulsePage />} />
+              <Route path="/dashboard/trust" element={<TrustPrivacyPage />} />
               <Route
                 path="/dashboard/map"
                 element={

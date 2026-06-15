@@ -10,6 +10,10 @@ export const MAPS_MAP_ID =
 
 export const FALLBACK_CENTER: LatLng = { lat: 40.4168, lng: -3.7038 }
 
+/** Used by HomePage before location is granted — shows planet-scale context, not a random city */
+export const WORLD_VIEW_CENTER: LatLng = { lat: 25, lng: 0 }
+export const WORLD_VIEW_ZOOM = 2
+
 // XNEXT Map Theme: Dark explorer aesthetic
 // Reduces Google default colors, adds orange highlights, desaturated terrain for premium dark feel
 export const XNEXT_MAP_STYLES = [

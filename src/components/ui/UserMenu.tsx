@@ -1,8 +1,8 @@
 /**
- * UserMenu — Placeholder
+ * UserMenu
  *
- * Displays user avatar + name with a dropdown for Profile, Settings, Sign Out.
- * Wire up to your routing solution (react-router-dom by default).
+ * Displays user avatar + name with a dropdown for Profile, Settings,
+ * Trust & Privacy pill, and Sign Out.
  */
 
 import { useEffect, useRef, useState } from 'react'
@@ -96,6 +96,27 @@ export function UserMenu() {
             <MenuButton onClick={() => { setOpen(false); navigate('/dashboard/settings') }}>
               Settings
             </MenuButton>
+          </div>
+
+          {/* Trust & Privacy pill — intentional accent, not a regular menu item */}
+          <div className="px-2 pb-1.5">
+            <button
+              onClick={() => { setOpen(false); navigate('/dashboard/trust') }}
+              className="flex w-full items-center gap-2 rounded-full border border-[#f97316]/40 bg-[#f97316]/[0.06] px-3 py-2 text-left text-[11px] font-semibold text-[#c2410c] transition-all hover:border-[#f97316]/70 hover:bg-[#f97316]/[0.12] active:scale-[0.98] dark:text-[#fde047]"
+              aria-label="Trust and Privacy"
+            >
+              <span className="text-[13px]">🔒</span>
+              <span>Trust &amp; Privacy</span>
+              <svg
+                className="ml-auto h-3 w-3 opacity-50"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.5}
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
           </div>
 
           <div className="border-t border-border py-1">
