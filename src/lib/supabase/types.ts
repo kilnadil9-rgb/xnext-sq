@@ -35,6 +35,7 @@ export interface Profile {
   bio: string | null
   website: string | null
   onboarding_completed: boolean
+  is_admin: boolean
   privacy_policy_accepted_at: string | null
   privacy_policy_version: string | null
   terms_accepted_at: string | null

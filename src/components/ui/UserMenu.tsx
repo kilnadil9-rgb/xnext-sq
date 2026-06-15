@@ -11,10 +11,12 @@ import { authService } from '../../services/authService'
 import { profileService } from '../../services/profileService'
 import type { User } from '@supabase/supabase-js'
 import type { Profile } from '../../lib/supabase/types'
+import { useAuth } from '../../hooks/useAuth'
 
 export function UserMenu() {
   const navigate = useNavigate()
   const menuRef = useRef<HTMLDivElement>(null)
+  const { profile: authProfile } = useAuth()
 
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -28,6 +30,9 @@ export function UserMenu() {
       profileService.getProfile(data.id).then(({ data: p }) => setProfile(p))
     })
   }, [])
+
+  // Sync is_admin from the shared AuthContext profile (stays fresh after refreshProfile calls)
+  const isAdmin = authProfile?.is_admin ?? profile?.is_admin ?? false
 
   // Close on outside click
   useEffect(() => {
@@ -96,6 +101,11 @@ export function UserMenu() {
             <MenuButton onClick={() => { setOpen(false); navigate('/dashboard/settings') }}>
               Settings
             </MenuButton>
+            {isAdmin && (
+              <MenuButton onClick={() => { setOpen(false); navigate('/dashboard/admin/review') }}>
+                Admin Review
+              </MenuButton>
+            )}
           </div>
 
           {/* Trust & Privacy pill — intentional accent, not a regular menu item */}

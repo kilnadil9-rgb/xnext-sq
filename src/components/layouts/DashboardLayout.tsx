@@ -37,7 +37,7 @@ export function DashboardLayout() {
   const [discoverError, setDiscoverError] = useState<string | null>(null)
   const [discoverSuccess, setDiscoverSuccess] = useState(false)
 
-  const { position: userPos, request: requestLoc } = useUserLocation(false)
+  const { position: userPos, status: locStatus, request: requestLoc } = useUserLocation(false)
 
   const handleNext = () => {
     // Dispatch to any listening map component (MapScreen or Home map)
@@ -46,6 +46,11 @@ export function DashboardLayout() {
 
   const openSheetHandler = (sheet: 'discover' | 'timeline' | 'pulse' | 'people') => {
     setOpenSheet(sheet)
+    // Start acquiring GPS as soon as the discover sheet opens so position
+    // is ready by the time the user hits Submit.
+    if (sheet === 'discover') {
+      requestLoc()
+    }
   }
 
   const closeSheet = () => setOpenSheet(null)
@@ -132,13 +137,13 @@ export function DashboardLayout() {
     }
 
     // Build quest payload (discoveries go to pending_review for review flow)
-    // Location: prefer live user position (common when opened from map home); fallback to Tri-Cities area
-    let location = userPos
-    if (!location) {
-      // best-effort request (may require gesture); use fallback so form never blocks on photo test
+    // Location: real GPS only — no fallback. If unavailable, block submit.
+    if (!userPos) {
       requestLoc()
-      location = { lat: 46.23, lng: -119.10 }
+      setDiscoverError('We need your location to place this discovery on the map. Enable location and try again.')
+      return
     }
+    const location = userPos
 
     const classMap: Record<string, ExperienceClass> = {
       'Hidden Viewpoint': 'wonder',
@@ -319,6 +324,24 @@ export function DashboardLayout() {
                   <p className="text-sm text-white/60 mb-4">
                     Share a hidden gem with the community. No businesses — only real experiences.
                   </p>
+
+                  {/* Location status indicator */}
+                  {locStatus !== 'active' && (
+                    <div className={`mb-3 flex items-center gap-2 rounded border px-3 py-2 text-xs ${
+                      locStatus === 'denied' || locStatus === 'unavailable' || locStatus === 'error'
+                        ? 'border-red-500/30 bg-red-500/10 text-red-400'
+                        : 'border-yellow-500/30 bg-yellow-500/10 text-yellow-400'
+                    }`}>
+                      <span>📍</span>
+                      <span>
+                        {locStatus === 'denied'
+                          ? 'Location access denied — enable it in Settings to submit.'
+                          : locStatus === 'unavailable' || locStatus === 'error'
+                            ? 'Location unavailable on this device.'
+                            : 'Acquiring your location…'}
+                      </span>
+                    </div>
+                  )}
 
                   {discoverError && (
                     <div className="mb-3 rounded border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-400" role="alert">

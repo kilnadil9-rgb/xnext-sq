@@ -44,6 +44,7 @@ const CompletedQuestsPage = lazy(
   () => import('./pages/dashboard/CompletedQuestsPage'),
 )
 const PreferencesPage = lazy(() => import('./pages/dashboard/PreferencesPage'))
+const AdminReviewPage = lazy(() => import('./pages/dashboard/AdminReviewPage'))
 
 const suspense = (node: ReactNode) => (
   <Suspense fallback={<LoadingState fullScreen />}>{node}</Suspense>
@@ -91,6 +92,7 @@ export function App() {
               <Route path="/dashboard/preferences" element={suspense(<PreferencesPage />)} />
               <Route path="/dashboard/pulse" element={<PulsePage />} />
               <Route path="/dashboard/trust" element={<TrustPrivacyPage />} />
+              <Route path="/dashboard/admin/review" element={suspense(<AdminReviewPage />)} />
               <Route
                 path="/dashboard/map"
                 element={
