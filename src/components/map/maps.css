@@ -129,9 +129,9 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: #1a73e8;
-  border: 3px solid #fff;
-  box-shadow: 0 0 0 8px rgb(26 115 232 / 0.2);
+  background: #fff;
+  border: 3px solid #f97316;
+  box-shadow: 0 0 0 6px rgba(249, 115, 22, 0.2), 0 2px 4px rgb(0 0 0 / 0.35);
 }
 
 .quest-pin {
@@ -139,9 +139,123 @@
   height: 30px;
   border-radius: 50% 50% 50% 0;
   transform: rotate(-45deg);
-  background: #7c3aed;
+  background: #f97316;
   border: 2px solid #fff;
   box-shadow: 0 2px 6px rgb(0 0 0 / 0.3);
+}
+
+/* ── Adventure Radar markers (Phase 1.8) ─────────────────────────────
+   All markers use a 0×0 AdvancedMarker anchor so that
+   position: absolute + transform: translate(-50%,-50%) centers them
+   precisely on the lat/lng coordinate.                                  */
+
+@keyframes radar-ring-breathe {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 0.12; }
+}
+
+@keyframes radar-sweep-rotate {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes dot-ring-pulse {
+  0%   { transform: scale(0.75); opacity: 0.55; }
+  80%  { transform: scale(2.4);  opacity: 0; }
+  100% { transform: scale(2.4);  opacity: 0; }
+}
+
+@keyframes demo-signal-blink {
+  0%, 100% { opacity: 0.3;  transform: translate(-50%, -50%) scale(0.85); }
+  50%       { opacity: 0.85; transform: translate(-50%, -50%) scale(1.15); }
+}
+
+/* Pulsing user dot — alive, orange-glow, centered on anchor */
+.xnext-user-dot {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  border: 3px solid #f97316;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 14px rgba(249, 115, 22, 0.75), 0 2px 4px rgba(0, 0, 0, 0.4);
+  z-index: 3;
+}
+
+/* GPU-accelerated pulse ring radiating from user dot */
+.xnext-user-dot::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: rgba(249, 115, 22, 0.45);
+  animation: dot-ring-pulse 2.2s ease-out infinite;
+}
+
+/* Scanning radius ring — communicates "XNEXT is scanning nearby" */
+.xnext-radar-ring {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(249, 115, 22, 0.42);
+  background: rgba(249, 115, 22, 0.018);
+  transform: translate(-50%, -50%);
+  animation: radar-ring-breathe 3.5s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Rotating conic sweep — feels like active scanning energy */
+.xnext-radar-sweep {
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: conic-gradient(
+    rgba(249, 115, 22, 0.28) 0deg,
+    rgba(249, 115, 22, 0.10) 52deg,
+    rgba(253, 224, 71, 0.04) 80deg,
+    transparent 108deg
+  );
+  transform: translate(-50%, -50%) rotate(0deg);
+  animation: radar-sweep-rotate 5s linear infinite;
+  pointer-events: none;
+  will-change: transform;
+  z-index: 2;
+}
+
+/* Quest signal pin — glowing, centered on anchor */
+.xnext-home-pin {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #f97316;
+  border: 2px solid rgba(255, 255, 255, 0.9);
+  transform: translate(-50%, -50%);
+  box-shadow:
+    0 0 0 4px rgba(249, 115, 22, 0.22),
+    0 0 12px rgba(249, 115, 22, 0.5),
+    0 2px 6px rgba(0, 0, 0, 0.45);
+  z-index: 2;
+}
+
+/* Demo radar signal — visual code placeholder, not a real quest pin.
+   Shown only when location is active but no real quests exist in range. */
+.xnext-demo-pin {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(249, 115, 22, 0.42);
+  border: 1px solid rgba(249, 115, 22, 0.7);
+  transform: translate(-50%, -50%) scale(0.85);
+  box-shadow: 0 0 8px rgba(249, 115, 22, 0.35);
+  animation: demo-signal-blink 2.6s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .quest-pin--selected {

@@ -1,16 +1,17 @@
 /**
- * HomePage — Phase 1.6 Capsule Experience Foundation
+ * HomePage — Phase 1.7 polish
  *
- * Layout hierarchy:
- *   MAP (full-screen, world layer)
- *     ↓ floating
- *   AdventureRadarCapsule
- *   FeaturedExperienceCapsule
- *   BottomNavigation (in DashboardLayout)
+ * Changes from 1.6:
+ *  - World-view fallback (zoom 2, neutral center) until location is granted
+ *  - gestureHandling="greedy" — map scrolls naturally on mobile without double-tap
+ *  - Custom XNEXT orange markers replace default Google red pins
+ *  - AdventureRadarCapsule receives locationStatus (no longer takes onNext)
+ *  - Capsule stack bottom clearance increased to clear the elevated NEXT button
  *
- * Visual only. No location logic, quest ranking, or event bus changes.
+ * Preserved untouched: useUserLocation, useNearbyQuests, event bus, quest cycling.
  */
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   APIProvider,
   AdvancedMarker,
@@ -20,13 +21,34 @@ import { useUserLocation } from '../../hooks/useUserLocation'
 import { useNearbyQuests } from '../../hooks/useNearbyQuests'
 import { MapErrorBoundary } from '../../components/map/MapErrorBoundary'
 import type { LatLng } from '../../components/map/types'
-import { MAPS_API_KEY, FALLBACK_CENTER, XNEXT_MAP_STYLES } from '../../components/map/mapsConfig'
+import {
+  MAPS_API_KEY,
+  FALLBACK_CENTER,
+  WORLD_VIEW_CENTER,
+  WORLD_VIEW_ZOOM,
+  XNEXT_MAP_STYLES,
+} from '../../components/map/mapsConfig'
 import { AdventureRadarCapsule } from '../../components/ui/AdventureRadarCapsule'
 import { FeaturedExperienceCapsule } from '../../components/ui/FeaturedExperienceCapsule'
 
 const HERO_RADIUS_KM = 25
 
+/**
+ * RADAR_DEMO_PINS — code-only visual placeholders.
+ * Rendered as dim blinking signals when location is active but no real
+ * quests exist in range. These communicate "scanning" energy — they make
+ * no product claims and carry no real data. Offsets are in degrees;
+ * at zoom 12 and ~46°N, 0.01° lat ≈ 1.1 km, 0.01° lng ≈ 0.75 km.
+ */
+const RADAR_DEMO_PINS = [
+  { id: 'radar-demo-0', latDelta:  0.019, lngDelta:  0.024 },
+  { id: 'radar-demo-1', latDelta: -0.011, lngDelta:  0.031 },
+  { id: 'radar-demo-2', latDelta: -0.022, lngDelta: -0.018 },
+  { id: 'radar-demo-3', latDelta:  0.027, lngDelta: -0.011 },
+] as const
+
 export function HomePage() {
+  const navigate = useNavigate()
   const {
     position: userPosition,
     status: locationStatus,
@@ -92,9 +114,10 @@ export function HomePage() {
   const featuredQuest = radarQuests[currentRadarIndex] ?? radarQuests[0] ?? null
   const isLive = locationStatus === 'active'
 
-  const handleNext = () => {
-    window.dispatchEvent(new CustomEvent('xnext-next'))
-  }
+  // P1: Use world view until location is granted, then switch to user-centric view
+  const useWorldView = !hasAutoCentered && locationStatus !== 'active'
+  const mapCenter = useWorldView ? WORLD_VIEW_CENTER : heroCenter
+  const mapZoom = useWorldView ? WORLD_VIEW_ZOOM : 12
 
   const handleGo = () => {
     if (featuredQuest) {
@@ -111,27 +134,65 @@ export function HomePage() {
           <MapErrorBoundary>
             <APIProvider apiKey={MAPS_API_KEY} libraries={['marker']}>
               <Map
-                center={heroCenter}
-                zoom={12}
+                center={mapCenter}
+                zoom={mapZoom}
                 className="h-full w-full"
-                gestureHandling="cooperative"
+                gestureHandling="greedy"
                 disableDefaultUI
                 mapId={undefined}
                 styles={XNEXT_MAP_STYLES}
               >
-                {/* Real experience markers (capped at 5 for performance) */}
-                {radarQuests.slice(0, 5).map((q) =>
+                {/* ── Real quest signal pins (capped at 5 for perf) ─────────
+                    0×0 anchor wrapper so transform: translate(-50%,-50%)
+                    centers the dot precisely on the lat/lng coordinate.    */}
+                {!useWorldView && radarQuests.slice(0, 5).map((q) =>
                   q.lat != null && q.lng != null ? (
                     <AdvancedMarker
                       key={q.id}
                       position={{ lat: q.lat, lng: q.lng }}
-                    />
+                    >
+                      <div style={{ position: 'relative', width: 0, height: 0 }}>
+                        <div className="xnext-home-pin" />
+                      </div>
+                    </AdvancedMarker>
                   ) : null
                 )}
 
-                {/* User position marker */}
+                {/* ── Demo radar signals ─────────────────────────────────────
+                    Shown ONLY when location is active but no real quests
+                    are in range. Pure visual scanning energy — no product
+                    copy, no fake quest data. Hidden once real quests load.  */}
+                {isLive && !useWorldView && radarQuests.length === 0 && userPosition &&
+                  RADAR_DEMO_PINS.map((pin, i) => (
+                    <AdvancedMarker
+                      key={pin.id}
+                      position={{
+                        lat: userPosition.lat + pin.latDelta,
+                        lng: userPosition.lng + pin.lngDelta,
+                      }}
+                    >
+                      <div style={{ position: 'relative', width: 0, height: 0 }}>
+                        <div
+                          className="xnext-demo-pin"
+                          style={{ animationDelay: `${i * 0.65}s` }}
+                        />
+                      </div>
+                    </AdvancedMarker>
+                  ))
+                }
+
+                {/* ── User radar dot + sweep + ring ──────────────────────────
+                    When active: full radar layer (sweep → ring → dot).
+                    When locating/denied: just the dot (no sweep/ring).
+                    0×0 anchor + absolute children = precise centering.     */}
                 {userPosition && (
-                  <AdvancedMarker position={userPosition} />
+                  <AdvancedMarker position={userPosition}>
+                    <div style={{ position: 'relative', width: 0, height: 0 }}>
+                      {isLive && <div className="xnext-radar-sweep" />}
+                      {isLive && <div className="xnext-radar-ring" />}
+                      <div className="xnext-user-dot" />
+                    </div>
+                  </AdvancedMarker>
                 )}
               </Map>
             </APIProvider>
@@ -141,29 +202,30 @@ export function HomePage() {
           <div className="h-full w-full bg-gradient-to-br from-slate-950 via-slate-900 to-slate-800 flex items-center justify-center">
             <div className="text-center text-white/30 text-sm">
               <div className="text-4xl mb-2">🌍</div>
-              <div className="font-mono tracking-wider text-xs">WORLD LAYER</div>
-              <div className="mt-1 opacity-60">Configure VITE_GOOGLE_MAPS_API_KEY</div>
+              <div className="font-mono tracking-wider text-xs">Configure VITE_GOOGLE_MAPS_API_KEY</div>
             </div>
           </div>
         )}
       </div>
 
-      {/* ── Floating capsule stack (above bottom nav) ────────────────────── */}
+      {/* ── Floating capsule stack (above bottom nav + NEXT button) ─────── */}
       {/*
-        Positioned above the fixed BottomNav (h-16 = 4rem).
-        Both capsules sit flush-left to flush-right with a small gutter.
-        Max-width + auto margins keep it phone-width on large screens.
+        bottom-24 (96px) clears the BottomNav capsule (72px) + elevated NEXT button (88px top).
+        Max-width + auto margins keeps it phone-width on large screens.
       */}
-      <div className="absolute bottom-[calc(4rem+12px)] left-3 right-3 z-20 flex flex-col gap-2.5 max-w-sm mx-auto w-[calc(100%-1.5rem)]">
+      <div className="absolute bottom-24 left-3 right-3 z-20 flex flex-col gap-2.5 max-w-sm mx-auto w-[calc(100%-1.5rem)]">
         <AdventureRadarCapsule
           questCount={radarQuests.length}
           isLive={isLive}
-          onNext={handleNext}
+          locationStatus={locationStatus}
+          onRequestLocation={requestLocation}
         />
 
         <FeaturedExperienceCapsule
           quest={featuredQuest}
+          locationStatus={locationStatus}
           onGo={handleGo}
+          onDiscover={() => navigate('/dashboard/quests/new')}
         />
       </div>
     </div>
