@@ -36,7 +36,6 @@ import { DataRequestsPage } from './pages/legal/DataRequestsPage'
 import { ConsentPage } from './pages/legal/ConsentPage'
 
 // Lazy: keeps the Google Maps JS SDK out of the main bundle
-const MapPage = lazy(() => import('./pages/dashboard/MapPage'))
 const MyQuestsPage = lazy(() => import('./pages/dashboard/MyQuestsPage'))
 const CreateQuestPage = lazy(() => import('./pages/dashboard/CreateQuestPage'))
 const EditQuestPage = lazy(() => import('./pages/dashboard/EditQuestPage'))
@@ -93,14 +92,9 @@ export function App() {
               <Route path="/dashboard/pulse" element={<PulsePage />} />
               <Route path="/dashboard/trust" element={<TrustPrivacyPage />} />
               <Route path="/dashboard/admin/review" element={suspense(<AdminReviewPage />)} />
-              <Route
-                path="/dashboard/map"
-                element={
-                  <Suspense fallback={<LoadingState fullScreen />}>
-                    <MapPage />
-                  </Suspense>
-                }
-              />
+              {/* Single source of truth: Home IS the map. /map is folded into
+                  Home so mobile, preview, and prod show one experience. */}
+              <Route path="/dashboard/map" element={<Navigate to="/dashboard" replace />} />
 
               {/* Catch-all inside dashboard → redirect home */}
               <Route path="/dashboard/*" element={<Navigate to="/dashboard" replace />} />

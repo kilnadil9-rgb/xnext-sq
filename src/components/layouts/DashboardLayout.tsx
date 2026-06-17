@@ -9,6 +9,15 @@ import { supabase } from '../../lib/supabase/client'
 import { questService } from '../../services/questService'
 import type { ExperienceClass, QuestStatus } from '../../lib/supabase/types'
 import { useUserLocation } from '../../hooks/useUserLocation'
+import { LocationPickerMap } from '../map/LocationPickerMap'
+import type { LatLng } from '../map/types'
+
+/**
+ * Phase 1 testing: discoveries are visible immediately so uploaders trust the
+ * flow ("no waiting for moderation to verify basic visibility"). Flip to false
+ * to route new discoveries through admin review (pending_review) instead.
+ */
+const DISCOVERY_AUTO_PUBLISH = true
 
 /**
  * Primary app shell for authenticated users.
@@ -36,8 +45,16 @@ export function DashboardLayout() {
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [discoverError, setDiscoverError] = useState<string | null>(null)
   const [discoverSuccess, setDiscoverSuccess] = useState(false)
+  // Manual pin override (preferred fallback when GPS is missing/inaccurate).
+  // null = use live GPS; a value = the user confirmed this spot on the map.
+  const [discoverPin, setDiscoverPin] = useState<LatLng | null>(null)
 
-  const { position: userPos, status: locStatus, request: requestLoc } = useUserLocation(false)
+  const {
+    position: userPos,
+    accuracy: locAccuracy,
+    status: locStatus,
+    request: requestLoc,
+  } = useUserLocation(false)
 
   const handleNext = () => {
     // Dispatch to any listening map component (MapScreen or Home map)
@@ -68,6 +85,7 @@ export function DashboardLayout() {
     setUploadingPhoto(false)
     setDiscoverError(null)
     setDiscoverSuccess(false)
+    setDiscoverPin(null)
   }
 
   // Reset discover form when switching away from the discover sheet
@@ -136,14 +154,22 @@ export function DashboardLayout() {
       setUploadingPhoto(false)
     }
 
-    // Build quest payload (discoveries go to pending_review for review flow)
-    // Location: real GPS only — no fallback. If unavailable, block submit.
-    if (!userPos) {
+    // Layered location: prefer a confirmed manual pin, else live GPS.
+    // A pin lets users submit even when GPS is denied/inaccurate (no coordinate
+    // typing). We record which source was used + GPS accuracy in metadata.
+    const location = discoverPin ?? userPos
+    if (!location) {
       requestLoc()
-      setDiscoverError('We need your location to place this discovery on the map. Enable location and try again.')
+      setDiscoverError(
+        'Set a location first — enable GPS, or drop a pin on the map below to place this discovery.',
+      )
       return
     }
-    const location = userPos
+    const locationSource: 'gps' | 'pin' = discoverPin ? 'pin' : 'gps'
+    const locationAccuracyMeters =
+      locationSource === 'gps' && typeof locAccuracy === 'number'
+        ? Math.round(locAccuracy)
+        : null
 
     const classMap: Record<string, ExperienceClass> = {
       'Hidden Viewpoint': 'wonder',
@@ -170,8 +196,13 @@ export function DashboardLayout() {
         experience_class,
         location: { lat: location.lat, lng: location.lng },
         tags,
-        status: 'pending_review' as QuestStatus,
+        status: (DISCOVERY_AUTO_PUBLISH ? 'published' : 'pending_review') as QuestStatus,
         media_urls: photoUrl ? [photoUrl] : [],
+        // Location provenance stored in existing metadata jsonb (no schema change)
+        metadata: {
+          location_source: locationSource,
+          location_accuracy_meters: locationAccuracyMeters,
+        },
       })
 
       if (result.error || !result.data) {
@@ -179,6 +210,13 @@ export function DashboardLayout() {
       }
 
       setDiscoverSuccess(true)
+      // Immediate visibility: tell the live map to refetch so the new
+      // experience appears at once (no waiting on moderation).
+      window.dispatchEvent(
+        new CustomEvent('xnext-quest-created', {
+          detail: { lat: location.lat, lng: location.lng },
+        }),
+      )
       // brief confirmation then auto-close the sheet
       setTimeout(() => {
         resetDiscoverForm()
@@ -230,7 +268,6 @@ export function DashboardLayout() {
         <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Main navigation">
           <ul className="space-y-1">
             <NavItem to="/dashboard" label="Home" icon={HomeIcon} end />
-            <NavItem to="/dashboard/map" label="Map" icon={MapIcon} />
             <NavItem to="/dashboard/quests/mine" label="My Quests" icon={QuestIcon} />
             <NavItem to="/dashboard/dream-list" label="Dream List" icon={DreamListIcon} />
             <NavItem to="/dashboard/pulse" label="Pulse" icon={PulseIcon} />
@@ -345,10 +382,10 @@ export function DashboardLayout() {
                       <span>📍</span>
                       <span>
                         {locStatus === 'denied'
-                          ? 'Location access denied — enable it in Settings to submit.'
+                          ? 'Location off — no problem, just drag the pin on the map below to place your spot.'
                           : locStatus === 'unavailable' || locStatus === 'error'
-                            ? 'Location unavailable on this device.'
-                            : 'Acquiring your location…'}
+                            ? 'GPS unavailable — drop a pin on the map below instead.'
+                            : 'Finding your location… you can also drag the pin below.'}
                       </span>
                     </div>
                   )}
@@ -360,7 +397,9 @@ export function DashboardLayout() {
                   )}
                   {discoverSuccess && (
                     <div className="mb-3 rounded border border-green-500/30 bg-green-500/10 px-3 py-2 text-sm text-green-400">
-                      Discovery submitted for review. Thank you!
+                      {DISCOVERY_AUTO_PUBLISH
+                        ? '✓ Live on the map! Check the radar.'
+                        : 'Discovery submitted for review. Thank you!'}
                     </div>
                   )}
 
@@ -396,6 +435,28 @@ export function DashboardLayout() {
                       <option>Family Spot</option>
                       <option>Outdoor Adventure</option>
                     </select>
+
+                    {/* Layered location: live GPS pre-drops the pin; drag to
+                        correct it (preferred fallback — no coordinate typing). */}
+                    <div>
+                      <label className="text-xs block mb-1 text-white/50">
+                        Location {' '}
+                        <span className="text-white/35">
+                          {discoverPin
+                            ? '· pin placed'
+                            : locStatus === 'active'
+                              ? `· using GPS${typeof locAccuracy === 'number' ? ` (±${Math.round(locAccuracy)}m)` : ''}`
+                              : '· drag the pin to set'}
+                        </span>
+                      </label>
+                      <LocationPickerMap
+                        value={discoverPin ?? userPos}
+                        onChange={(loc) => setDiscoverPin(loc)}
+                      />
+                      <p className="text-[11px] text-white/40 mt-1">
+                        We start at your GPS location — drag the pin if it’s off, or to place a spot you’re not standing at.
+                      </p>
+                    </div>
 
                     <div>
                       <label className="text-xs block mb-1 text-white/50">Photo (JPG/PNG/WebP, max 5MB)</label>
@@ -462,7 +523,9 @@ export function DashboardLayout() {
                   </form>
 
                   <p className="text-[11px] text-white/40 mt-3 text-center">
-                    Submissions are reviewed before going live. We use your current location to place the pin on the map.
+                    {DISCOVERY_AUTO_PUBLISH
+                      ? 'Your discovery appears on the map right away. Be kind — real experiences only, no businesses.'
+                      : 'Submissions are reviewed before going live. Real experiences only, no businesses.'}
                   </p>
                 </div>
               )}
@@ -650,14 +713,6 @@ function AuditIcon({ className = iconProps }) {
   )
 }
 
-function MapIcon({ className = iconProps }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314-11.314z" />
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-    </svg>
-  )
-}
 
 function MenuIcon() {
   return (

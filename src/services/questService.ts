@@ -59,6 +59,8 @@ export interface CreateQuestInput {
   media_urls?: string[]
   /** Allow discover flow etc to start as pending_review instead of draft. */
   status?: QuestStatus
+  /** Extra provenance/details merged into the metadata jsonb column. */
+  metadata?: Record<string, unknown>
 }
 
 export interface UpdateQuestInput {
@@ -322,7 +324,7 @@ export const questService = {
       external_url: input.external_url?.trim() || null,
       status: (input.status ?? 'draft') as QuestStatus,
       expires_at: null,
-      metadata: {},
+      metadata: input.metadata ?? {},
     }
 
     const { data, error } = await supabase

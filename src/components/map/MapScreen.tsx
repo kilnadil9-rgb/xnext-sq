@@ -118,7 +118,9 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   } = useUserLocation()
 
   const [cameraCenter, setCameraCenter] = useState<LatLng>(FALLBACK_CENTER)
-  const [radiusKm, setRadiusKm] = useState(DEFAULT_RADIUS_KM)
+  // Cinematic Home has no radius control — surface adventures passively with a
+  // generous default that covers the whole Tri-Cities metro.
+  const [radiusKm, setRadiusKm] = useState(cinematic ? 50 : DEFAULT_RADIUS_KM)
   const [radiusTouched, setRadiusTouched] = useState(false)
   const [sortMode, setSortMode] = useState<RadarSortMode>('relevance')
   const [refreshKey, setRefreshKey] = useState(0)
@@ -126,7 +128,8 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   const [routeTo, setRouteTo] = useState<LatLng | null>(null)
   const [routeSummary, setRouteSummary] = useState<RouteSummary | null>(null)
   const [routeError, setRouteError] = useState<string | null>(null)
-  const [hasAutoCentered, setHasAutoCentered] = useState(false)
+  // Follow-me: keep the camera on the user until they manually drag the map.
+  const [followMe, setFollowMe] = useState(true)
   const [currentIndex, setCurrentIndex] = useState(0)
 
   // Live Mode state (Phase 1 MVP)
@@ -166,17 +169,14 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
     }
   }, [locationStatus, mapsReady, requestLocation])
 
-  // When real user location is granted, center the map and queries on it (do not stay on fallback).
-  // Only auto-center once on initial grant (subsequent watch updates don't override user panning).
+  // Follow-me map mode: while following, keep the camera (and the radar query
+  // center) locked to the user's live position. Manual drag turns this off;
+  // the Locate Me button turns it back on. Matches modern map-app behavior.
   useEffect(() => {
-    if (userPosition && locationStatus === 'active' && !hasAutoCentered) {
-      if (import.meta.env.DEV) {
-        console.log('[MapScreen] Real user location acquired — centering map and Radar on user coords', userPosition)
-      }
+    if (followMe && userPosition) {
       setCameraCenter(userPosition)
-      setHasAutoCentered(true)
     }
-  }, [userPosition, locationStatus, hasAutoCentered])
+  }, [followMe, userPosition])
 
   // Quests follow the visible map area (initially real user location once granted).
   // This ensures Adventure Radar starts with real user coordinates, not fallback.
@@ -202,10 +202,11 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   const { preferences } = useQuestPreferences(mapsReady)
 
   useEffect(() => {
-    if (preferences && !radiusTouched) {
+    // On cinematic Home we intentionally keep the wide default (no control).
+    if (preferences && !radiusTouched && !cinematic) {
       setRadiusKm(nearestRadiusOption(Number(preferences.max_distance_km)))
     }
-  }, [preferences, radiusTouched])
+  }, [preferences, radiusTouched, cinematic])
 
   const rankedQuests = useMemo(
     () =>
@@ -272,6 +273,14 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
     return () => window.removeEventListener('xnext-next', handler)
   }, [handleNext])
 
+  // Immediate visibility: when a discovery is created, refetch the radar so the
+  // new experience appears on the map right away.
+  useEffect(() => {
+    const handler = () => setRefreshKey((k) => k + 1)
+    window.addEventListener('xnext-quest-created', handler)
+    return () => window.removeEventListener('xnext-quest-created', handler)
+  }, [])
+
   // Live Mode listeners from bottom nav long press
   useEffect(() => {
     const enter = () => {
@@ -329,6 +338,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
           disableDefaultUI
           clickableIcons={false}
           reuseMaps
+          onDragstart={() => setFollowMe(false)}
           onCameraChanged={handleCameraChanged}
           className="radar-screen__canvas"
           styles={XNEXT_MAP_STYLES}
@@ -373,27 +383,28 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
           />
         </Map>
 
-        <div className="map-screen__top">
-          <PlaceSearch />
-          <select
-            className="radius-select"
-            aria-label="Search radius"
-            value={radiusKm}
-            onChange={(e) => {
-              setRadiusTouched(true)
-              setRadiusKm(Number(e.target.value))
-            }}
-          >
-            {RADIUS_OPTIONS_KM.map((r) => (
-              <option key={r} value={r}>
-                {formatDistance(r * 1000)}
-              </option>
-            ))}
-          </select>
+        {/* Search-first UX removed: XNEXT surfaces adventures, users don't hunt.
+            Classic /map keeps the search + radius bar; cinematic Home is calm
+            (HUD + bottom nav only). */}
+        {!cinematic && (
+          <div className="map-screen__top">
+            <PlaceSearch />
+            <select
+              className="radius-select"
+              aria-label="Search radius"
+              value={radiusKm}
+              onChange={(e) => {
+                setRadiusTouched(true)
+                setRadiusKm(Number(e.target.value))
+              }}
+            >
+              {RADIUS_OPTIONS_KM.map((r) => (
+                <option key={r} value={r}>
+                  {formatDistance(r * 1000)}
+                </option>
+              ))}
+            </select>
 
-          {/* Prominent NEXT button for cycling real experiences - tap to get the next nearby.
-              Hidden on cinematic Home, where the bottom-nav NEXT is the sole hero action. */}
-          {!cinematic && (
             <button
               onClick={handleNext}
               disabled={!rankedQuests.length}
@@ -402,8 +413,8 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
             >
               NEXT
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Cinematic Adventure Radar HUD — identity + live status, Home only.
             Sits above the map, below the corner chrome; the docked list below
@@ -470,10 +481,15 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
 
         <button
           type="button"
-          className="locate-button"
-          aria-label="Use my location"
+          className={`locate-button${followMe ? ' locate-button--active' : ''}`}
+          aria-label="Locate me"
+          aria-pressed={followMe}
           disabled={locationStatus === 'locating'}
-          onClick={requestLocation}
+          onClick={() => {
+            setFollowMe(true)
+            if (userPosition) setCameraCenter(userPosition)
+            requestLocation()
+          }}
         >
           {locationStatus === 'locating' ? '…' : '◎'}
         </button>
