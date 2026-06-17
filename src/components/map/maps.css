@@ -38,6 +38,46 @@
   }
 }
 
+/* ── Cinematic Home variant ──────────────────────────────────────────
+   Home reuses the radar engine but adds the XNEXT HUD and gives the map
+   more room. The docked list below stays as the nearby panel and clears
+   the floating bottom nav.                                              */
+
+.radar-screen--cinematic .radar-screen__map {
+  flex: 1.4; /* let the cinematic map dominate over the list */
+  border-radius: 0; /* full-bleed on Home */
+}
+
+/* Floating Adventure Radar HUD — centered, clear of the corner chrome */
+.radar-hud {
+  position: absolute;
+  top: 10px;
+  left: 54px;
+  right: 54px;
+  z-index: 5;
+  pointer-events: none; /* don't block map drags in the strip */
+}
+.radar-hud > * {
+  pointer-events: auto; /* but keep the capsule (Enable button) tappable */
+}
+
+/* Push the search/radius controls below the HUD on Home */
+.radar-screen--cinematic .map-screen__top {
+  top: 64px;
+}
+
+/* Nearby list clears the fixed bottom nav so last rows aren't hidden */
+.radar-screen--cinematic .radar-list__items {
+  padding-bottom: calc(88px + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 1024px) {
+  /* On desktop the list docks right; only the map needs bottom clearance */
+  .radar-screen--cinematic .radar-list__items {
+    padding-bottom: 6px;
+  }
+}
+
 /* ── Map overlays ──────────────────────────────────────────────────── */
 
 .map-screen__top {

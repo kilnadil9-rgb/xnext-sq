@@ -27,7 +27,17 @@ import { QuestList } from './QuestList'
 import { QuestPreviewCard } from './QuestPreviewCard'
 import { PlaceSearch } from './PlaceSearch'
 import { DirectionsLayer } from './DirectionsLayer'
+import { AdventureRadarCapsule } from '../ui/AdventureRadarCapsule'
 import './maps.css'
+
+interface MapScreenProps {
+  /**
+   * Cinematic Home variant: adds the XNEXT radar sweep/ring on the user dot
+   * and a floating Adventure Radar HUD, and trims redundant chrome (the
+   * top-row NEXT lives in the bottom nav on Home). Default = classic /map.
+   */
+  cinematic?: boolean
+}
 
 const RADIUS_OPTIONS_KM = [1, 2.5, 5, 10, 25, 50]
 
@@ -72,7 +82,7 @@ function LiveRadiusRing({ center, radiusMiles }: { center: LatLng; radiusMiles: 
   return null
 }
 
-export default function MapScreen() {
+export default function MapScreen({ cinematic = false }: MapScreenProps = {}) {
   if (!MAPS_API_KEY) {
     return (
       <div className="map-fallback" role="alert">
@@ -88,13 +98,13 @@ export default function MapScreen() {
   return (
     <MapErrorBoundary>
       <APIProvider apiKey={MAPS_API_KEY} libraries={['marker']}>
-        <RadarScreen />
+        <RadarScreen cinematic={cinematic} />
       </APIProvider>
     </MapErrorBoundary>
   )
 }
 
-function RadarScreen() {
+function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   const apiStatus = useApiLoadingStatus()
 
   const {
@@ -287,8 +297,10 @@ function RadarScreen() {
     )
   }
 
+  const isLive = locationStatus === 'active'
+
   return (
-    <div className="radar-screen">
+    <div className={`radar-screen${cinematic ? ' radar-screen--cinematic' : ''}`}>
       <div className="radar-screen__map">
         <Map
           mapId={MAPS_MAP_ID}
@@ -304,10 +316,22 @@ function RadarScreen() {
         >
           {userPosition && (
             <AdvancedMarker position={userPosition} title="You are here">
-              <div
-                className={`user-dot ${isLiveMode ? 'live' : ''}`}
-                aria-label={`Your location, accuracy ${Math.round(accuracy ?? 0)} m`}
-              />
+              {cinematic ? (
+                /* Cinematic radar: rotating sweep + breathing ring + glowing dot */
+                <div
+                  style={{ position: 'relative', width: 0, height: 0 }}
+                  aria-label={`Your location, accuracy ${Math.round(accuracy ?? 0)} m`}
+                >
+                  {isLive && <div className="xnext-radar-sweep" />}
+                  {isLive && <div className="xnext-radar-ring" />}
+                  <div className="xnext-user-dot" />
+                </div>
+              ) : (
+                <div
+                  className={`user-dot ${isLiveMode ? 'live' : ''}`}
+                  aria-label={`Your location, accuracy ${Math.round(accuracy ?? 0)} m`}
+                />
+              )}
             </AdvancedMarker>
           )}
 
@@ -348,21 +372,38 @@ function RadarScreen() {
             ))}
           </select>
 
-          {/* Prominent NEXT button for cycling real experiences - tap to get the next nearby */}
-          <button
-            onClick={handleNext}
-            disabled={!rankedQuests.length}
-            className="ml-2 px-4 py-1.5 rounded bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50"
-            aria-label="Cycle to next experience"
-          >
-            NEXT
-          </button>
+          {/* Prominent NEXT button for cycling real experiences - tap to get the next nearby.
+              Hidden on cinematic Home, where the bottom-nav NEXT is the sole hero action. */}
+          {!cinematic && (
+            <button
+              onClick={handleNext}
+              disabled={!rankedQuests.length}
+              className="ml-2 px-4 py-1.5 rounded bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50"
+              aria-label="Cycle to next experience"
+            >
+              NEXT
+            </button>
+          )}
         </div>
+
+        {/* Cinematic Adventure Radar HUD — identity + live status, Home only.
+            Sits above the map, below the corner chrome; the docked list below
+            remains the full nearby panel. */}
+        {cinematic && (
+          <div className="radar-hud">
+            <AdventureRadarCapsule
+              questCount={rankedQuests.length}
+              isLive={isLive}
+              locationStatus={locationStatus}
+              onRequestLocation={requestLocation}
+            />
+          </div>
+        )}
 
         {/* Live Mode radius selector and exit (only when active) */}
         {isLiveMode && (
           <>
-            <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[70] flex gap-1 bg-card/90 p-1 rounded-full shadow text-xs">
+            <div className={`absolute ${cinematic ? 'top-32' : 'top-20'} left-1/2 -translate-x-1/2 z-[70] flex gap-1 bg-card/90 p-1 rounded-full shadow text-xs`}>
               {[0.5, 1, 5, 25].map((m) => (
                 <button
                   key={m}
@@ -382,12 +423,15 @@ function RadarScreen() {
           </>
         )}
 
-        {/* Clearer permission note — XNEXT language, less generic */}
-        <div className="absolute right-3 top-[88px] z-[60] max-w-[200px] rounded-md border border-border/70 bg-card/95 px-2 py-1 text-[10px] leading-snug shadow text-muted-foreground">
-          See real experiences near you.<br />
-          XNEXT uses your location only for discovery. Never sold.<br />
-          Turn off anytime in settings.
-        </div>
+        {/* Clearer permission note — XNEXT language, less generic.
+            On cinematic Home the radar HUD already conveys location state. */}
+        {!cinematic && (
+          <div className="absolute right-3 top-[88px] z-[60] max-w-[200px] rounded-md border border-border/70 bg-card/95 px-2 py-1 text-[10px] leading-snug shadow text-muted-foreground">
+            See real experiences near you.<br />
+            XNEXT uses your location only for discovery. Never sold.<br />
+            Turn off anytime in settings.
+          </div>
+        )}
 
         <button
           type="button"
