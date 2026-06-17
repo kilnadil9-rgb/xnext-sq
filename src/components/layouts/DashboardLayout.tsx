@@ -235,7 +235,7 @@ export function DashboardLayout() {
             <NavItem to="/dashboard/dream-list" label="Dream List" icon={DreamListIcon} />
             <NavItem to="/dashboard/pulse" label="Pulse" icon={PulseIcon} />
             <NavItem to="/dashboard/quests/new" label="Create Quest" icon={QuestIcon} />
-            <NavItem to="/dashboard/completed" label="Completed" icon={QuestIcon} />
+            <NavItem to="/dashboard/completed" label="Memories" icon={QuestIcon} />
             <NavItem to="/dashboard/preferences" label="Preferences" icon={UsersIcon} />
           </ul>
 

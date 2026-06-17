@@ -63,7 +63,31 @@
 
 /* Push the search/radius controls below the HUD on Home */
 .radar-screen--cinematic .map-screen__top {
-  top: 64px;
+  top: 88px;
+}
+
+/* Progress counters under the HUD capsule */
+.radar-progress {
+  margin-top: 6px;
+  display: flex;
+  justify-content: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.radar-progress span {
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(12, 13, 18, 0.78);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  backdrop-filter: blur(10px);
+  font-size: 11px;
+  color: rgba(244, 245, 247, 0.7);
+  white-space: nowrap;
+}
+.radar-progress strong {
+  color: #f97316;
+  font-weight: 800;
+  margin-right: 3px;
 }
 
 /* Nearby list clears the fixed bottom nav so last rows aren't hidden */
@@ -466,6 +490,199 @@
   border-color: rgba(16, 185, 129, 0.4);
   color: #6ee7b7;
   cursor: default;
+}
+
+/* ── Adventure completion: form + celebration ───────────────────────── */
+
+.quest-sheet__completed-banner {
+  margin: 6px 0 4px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  color: #6ee7b7;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.quest-sheet__view-memory {
+  flex: 1;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f5f7;
+  font-size: 15px;
+  text-decoration: none;
+}
+
+.quest-complete-form {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.quest-complete-form__label {
+  font-size: 12px;
+  color: rgba(244, 245, 247, 0.6);
+}
+
+.quest-complete-form__notes {
+  width: 100%;
+  min-height: 64px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  color: #f4f5f7;
+  font-size: 14px;
+  resize: vertical;
+}
+.quest-complete-form__notes::placeholder {
+  color: rgba(244, 245, 247, 0.35);
+}
+
+.quest-complete-form__future {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px dashed rgba(249, 115, 22, 0.3);
+  background: rgba(249, 115, 22, 0.05);
+}
+
+.quest-complete-form__stars {
+  display: flex;
+  gap: 4px;
+}
+.quest-complete-form__star {
+  border: none;
+  background: none;
+  font-size: 24px;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.2);
+  cursor: pointer;
+  transition: color 0.12s, transform 0.12s;
+}
+.quest-complete-form__star.is-on {
+  color: #fde047;
+  transform: scale(1.08);
+}
+
+.quest-complete-form__toggles {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.quest-complete-form__chip {
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(244, 245, 247, 0.7);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.quest-complete-form__chip.is-on {
+  border-color: rgba(249, 115, 22, 0.6);
+  background: rgba(249, 115, 22, 0.16);
+  color: #fdba74;
+}
+
+.quest-complete-form__hint {
+  margin: 0;
+  font-size: 11px;
+  color: rgba(244, 245, 247, 0.4);
+}
+
+/* ── Celebration ─────────────────────────────────────────────────────── */
+
+@keyframes celebrate-pop {
+  0% { transform: scale(0.4); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes celebrate-rise {
+  from { transform: translateY(10px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes celebrate-burst {
+  0% { transform: rotate(calc(var(--i) * 45deg)) translateY(0) scale(0.4); opacity: 0; }
+  35% { opacity: 1; }
+  100% { transform: rotate(calc(var(--i) * 45deg)) translateY(-90px) scale(1); opacity: 0; }
+}
+
+.xnext-celebrate {
+  text-align: center;
+  padding-top: 26px;
+  overflow: hidden;
+}
+
+.xnext-celebrate__burst {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.xnext-celebrate__burst span {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: #f97316;
+  animation: celebrate-burst 1.1s ease-out forwards;
+}
+.xnext-celebrate__burst span:nth-child(even) {
+  background: #fde047;
+}
+
+.xnext-celebrate__icon {
+  font-size: 52px;
+  line-height: 1;
+  animation: celebrate-pop 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.3) both;
+  filter: drop-shadow(0 0 16px rgba(249, 115, 22, 0.6));
+}
+
+.xnext-celebrate__title {
+  margin: 10px 0 12px;
+  font-size: 24px;
+  font-weight: 800;
+  color: #f4f5f7;
+  letter-spacing: -0.5px;
+  animation: celebrate-rise 0.4s ease 0.12s both;
+}
+
+.xnext-celebrate__rewards {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.xnext-celebrate__reward {
+  padding: 6px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 700;
+  background: rgba(249, 115, 22, 0.16);
+  border: 1px solid rgba(249, 115, 22, 0.4);
+  color: #fdba74;
+  animation: celebrate-rise 0.4s ease 0.22s both;
+}
+.xnext-celebrate__reward--memory {
+  background: rgba(253, 224, 71, 0.12);
+  border-color: rgba(253, 224, 71, 0.4);
+  color: #fde047;
+  animation-delay: 0.32s;
 }
 
 /* ── Radar list ────────────────────────────────────────────────────── */

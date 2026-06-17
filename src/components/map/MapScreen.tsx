@@ -28,6 +28,8 @@ import { QuestPreviewCard } from './QuestPreviewCard'
 import { PlaceSearch } from './PlaceSearch'
 import { DirectionsLayer } from './DirectionsLayer'
 import { AdventureRadarCapsule } from '../ui/AdventureRadarCapsule'
+import { questCompletionService } from '../../services/questCompletionService'
+import { dreamListService } from '../../services/dreamListService'
 import './maps.css'
 
 interface MapScreenProps {
@@ -130,6 +132,23 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   // Live Mode state (Phase 1 MVP)
   const [isLiveMode, setIsLiveMode] = useState(false)
   const [liveRadiusMiles, setLiveRadiusMiles] = useState(5)
+
+  // Progress system (cinematic Home only): Completed + Dream List counts.
+  const [completedCount, setCompletedCount] = useState<number | null>(null)
+  const [dreamCount, setDreamCount] = useState<number | null>(null)
+  useEffect(() => {
+    if (!cinematic) return
+    let cancelled = false
+    questCompletionService.getMyCompletions({ limit: 100 }).then((r) => {
+      if (!cancelled && r.data) setCompletedCount(r.data.length)
+    })
+    dreamListService.getMyDreamList({ limit: 100 }).then((r) => {
+      if (!cancelled && r.data) setDreamCount(r.data.length)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [cinematic])
 
   const mapsReady = apiStatus === APILoadingStatus.LOADED
 
@@ -397,6 +416,12 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
               locationStatus={locationStatus}
               onRequestLocation={requestLocation}
             />
+            {/* Progress system — sense of advancement, not endless scrolling */}
+            <div className="radar-progress" role="status">
+              <span><strong>{rankedQuests.length}</strong> Nearby</span>
+              <span><strong>{completedCount ?? '—'}</strong> Completed</span>
+              <span><strong>{dreamCount ?? '—'}</strong> Dream List</span>
+            </div>
           </div>
         )}
 

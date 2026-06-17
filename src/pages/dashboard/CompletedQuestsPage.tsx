@@ -50,10 +50,10 @@ export function CompletedQuestsPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-xl font-semibold text-foreground">
-          Completed quests
+          Memories
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Every experience you’ve finished, newest first.
+          Every adventure you’ve completed, newest first — your growing life timeline.
         </p>
       </div>
 
@@ -64,10 +64,10 @@ export function CompletedQuestsPage() {
       {!loading && !error && completions.length === 0 && (
         <div className="rounded-xl border border-dashed border-border bg-card p-10 text-center">
           <p className="text-sm font-medium text-foreground">
-            Nothing completed yet
+            No memories yet
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Find something nearby on the Adventure Radar and make it happen.
+            Complete an adventure on the Radar and it lands here as your first memory.
           </p>
           <Link
             to="/dashboard/map"

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { dreamListService } from '../../services/dreamListService'
 import { questCompletionService } from '../../services/questCompletionService'
 import { formatDistance } from '../../lib/distance'
@@ -18,7 +19,23 @@ interface Props {
   onNext?: () => void
 }
 
-/** Bottom-sheet preview for the selected quest, with Dream List save. */
+/** Placeholder reward — real XP economy lands later. */
+function xpFor(quest: RankedQuest): number {
+  return 100 + Math.round(quest.sq_score ?? 0)
+}
+
+/**
+ * Bottom-sheet preview for the selected quest.
+ *
+ * Implements the adventure lifecycle (beginning → middle → ending):
+ *   preview → Start Adventure → Complete / Not Today / Save For Later
+ *   → completion records a Memory (quest_completions) → celebration
+ *   → "Next adventure" suggested.
+ *
+ * Reuses existing services only (no schema changes): completeQuest records
+ * the memory + notes (story) + sq_score; addToDreamList handles Save For
+ * Later. Photo / rating / recommend / friends are future-ready UI.
+ */
 export function QuestPreviewCard({
   quest,
   routeSummary,
@@ -33,16 +50,27 @@ export function QuestPreviewCard({
     useState<CompletionState>('checking')
   const [activeAdventure, setActiveAdventure] = useState(false)
 
+  // Completion form + celebration
+  const [showCompleteForm, setShowCompleteForm] = useState(false)
+  const [notes, setNotes] = useState('')
+  const [rating, setRating] = useState(0)
+  const [recommend, setRecommend] = useState<boolean | null>(null)
+  const [withFriends, setWithFriends] = useState(false)
+  const [celebrating, setCelebrating] = useState(false)
+  const [xpEarned, setXpEarned] = useState(0)
+
   useEffect(() => {
     let cancelled = false
     setSaveState('checking')
     setCompletionState('checking')
     setSaveError(null)
+    setActiveAdventure(false)
+    setShowCompleteForm(false)
+    setCelebrating(false)
 
     dreamListService.getDreamListItemByQuestId(quest.id).then((result) => {
       if (cancelled) return
       if (result.error) {
-        // Treat as not saved; surface error only on an actual save attempt.
         setSaveState('not_saved')
         return
       }
@@ -59,34 +87,11 @@ export function QuestPreviewCard({
     }
   }, [quest.id])
 
-  const handleComplete = async () => {
-    setCompletionState('completing')
-    setSaveError(null)
-    const result = await questCompletionService.completeQuest(quest.id, {
-      sqScoreAtCompletion: quest.sq_score,
-    })
-    if (result.error) {
-      setCompletionState('not_done')
-      setSaveError(result.error)
-      return
-    }
-    setCompletionState('done')
-  }
-
-  const handleLetsGo = () => {
-    if (routeSummary) {
-      onShowRoute()
-    } else {
-      setActiveAdventure(true)
-    }
-  }
-
   const handleSave = async () => {
     setSaveState('saving')
     setSaveError(null)
     const result = await dreamListService.addToDreamList(quest.id)
     if (result.error) {
-      // Unique-violation = already saved elsewhere; treat as saved.
       if (/duplicate|unique/i.test(result.error)) {
         setSaveState('saved')
       } else {
@@ -97,6 +102,73 @@ export function QuestPreviewCard({
     }
     setSaveState('saved')
   }
+
+  const handleStart = () => {
+    setActiveAdventure(true)
+    if (!routeSummary) onShowRoute()
+  }
+
+  const handleConfirmComplete = async () => {
+    setCompletionState('completing')
+    setSaveError(null)
+    const result = await questCompletionService.completeQuest(quest.id, {
+      story: notes.trim() || null,
+      sqScoreAtCompletion: quest.sq_score,
+    })
+    if (result.error) {
+      setCompletionState('not_done')
+      setSaveError(result.error)
+      return
+    }
+    setXpEarned(xpFor(quest))
+    setCompletionState('done')
+    setShowCompleteForm(false)
+    setCelebrating(true)
+  }
+
+  const handleNextFromCelebration = () => {
+    setCelebrating(false)
+    if (onNext) onNext()
+    else onClose()
+  }
+
+  /* ── Celebration overlay (adventure ending) ───────────────────────────── */
+  if (celebrating) {
+    return (
+      <div className="quest-sheet xnext-celebrate" role="dialog" aria-label="Adventure complete">
+        <div className="xnext-celebrate__burst" aria-hidden="true">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <span key={i} style={{ ['--i' as string]: i }} />
+          ))}
+        </div>
+        <div className="xnext-celebrate__icon" aria-hidden="true">🏆</div>
+        <h2 className="xnext-celebrate__title">Adventure Complete</h2>
+        <div className="xnext-celebrate__rewards">
+          <div className="xnext-celebrate__reward">+{xpEarned} XP Earned</div>
+          <div className="xnext-celebrate__reward xnext-celebrate__reward--memory">
+            + Memory Added
+          </div>
+        </div>
+        <p className="quest-sheet__meta" style={{ textAlign: 'center' }}>
+          “{quest.title}” is now in your Memories.
+        </p>
+        <div className="quest-sheet__actions">
+          <Link to="/dashboard/completed" className="quest-sheet__view-memory">
+            View in Memories
+          </Link>
+          <button
+            type="button"
+            className="quest-sheet__primary"
+            onClick={handleNextFromCelebration}
+          >
+            Next adventure →
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const isDone = completionState === 'done'
 
   return (
     <div className="quest-sheet" role="dialog" aria-label={quest.title}>
@@ -133,60 +205,143 @@ export function QuestPreviewCard({
         </p>
       )}
 
-      <div className="quest-sheet__actions">
-        <button
-          type="button"
-          className="quest-sheet__primary"
-          disabled={saveState === 'checking' || saveState === 'saving' || saveState === 'saved'}
-          onClick={handleSave}
-        >
-          {saveState === 'saved'
-            ? '✓ Saved'
-            : saveState === 'saving'
-              ? 'Saving…'
-              : saveState === 'checking'
-                ? '…'
-                : 'Save'}
-        </button>
-        <button
-          type="button"
-          className="quest-sheet__primary"
-          onClick={handleLetsGo}
-        >
-          {activeAdventure ? 'Ready to go' : "Let’s Go"}
-        </button>
-      </div>
-
-      {activeAdventure && !routeSummary && (
-        <p className="quest-sheet__meta text-center text-sm mt-1">
-          Ready to go! The map is centered on this experience. Use Next to find more or Save to your Dream List.
-        </p>
+      {/* ── Already completed earlier ─────────────────────────────────────── */}
+      {isDone && !celebrating && (
+        <>
+          <div className="quest-sheet__completed-banner">
+            🏆 Completed — saved to your Memories
+          </div>
+          <div className="quest-sheet__actions">
+            <Link to="/dashboard/completed" className="quest-sheet__view-memory">
+              View in Memories
+            </Link>
+            {onNext && (
+              <button type="button" className="quest-sheet__primary" onClick={onNext}>
+                Next adventure →
+              </button>
+            )}
+          </div>
+        </>
       )}
 
-      {/* De-emphasized: Details removed as primary; Mark Complete only if active adventure */}
-      { (activeAdventure || completionState === 'done') && (
+      {/* ── Beginning: not started yet ────────────────────────────────────── */}
+      {!isDone && !activeAdventure && (
         <div className="quest-sheet__actions">
           <button
             type="button"
-            className={
-              completionState === 'done' ? 'quest-sheet__done' : undefined
-            }
-            disabled={
-              completionState === 'checking' || completionState === 'completing'
-            }
-            onClick={completionState === 'done' ? undefined : handleComplete}
+            disabled={saveState === 'checking' || saveState === 'saving' || saveState === 'saved'}
+            onClick={handleSave}
           >
-            {completionState === 'done'
-              ? '🏆 Completed'
-              : completionState === 'completing'
-                ? 'Completing…'
-                : completionState === 'checking'
-                  ? '…'
-                  : 'Mark complete'}
+            {saveState === 'saved'
+              ? '✓ Saved'
+              : saveState === 'saving'
+                ? 'Saving…'
+                : 'Save for Later'}
+          </button>
+          <button type="button" className="quest-sheet__primary" onClick={handleStart}>
+            Let’s Go
           </button>
         </div>
       )}
 
+      {/* ── Middle: adventure in progress ─────────────────────────────────── */}
+      {!isDone && activeAdventure && !showCompleteForm && (
+        <>
+          <p className="quest-sheet__meta" style={{ textAlign: 'center', marginTop: 4 }}>
+            Adventure started — the map is centered here. Finish when you’ve made it.
+          </p>
+          <div className="quest-sheet__actions">
+            <button
+              type="button"
+              className="quest-sheet__primary"
+              onClick={() => setShowCompleteForm(true)}
+            >
+              Complete Adventure
+            </button>
+          </div>
+          <div className="quest-sheet__actions">
+            <button type="button" onClick={onClose}>
+              Not Today
+            </button>
+            <button
+              type="button"
+              disabled={saveState === 'saving' || saveState === 'saved'}
+              onClick={handleSave}
+            >
+              {saveState === 'saved' ? '✓ Saved' : 'Save for Later'}
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* ── Completion form ───────────────────────────────────────────────── */}
+      {!isDone && showCompleteForm && (
+        <div className="quest-complete-form">
+          <label className="quest-complete-form__label" htmlFor="memory-notes">
+            Add a note to your memory
+          </label>
+          <textarea
+            id="memory-notes"
+            className="quest-complete-form__notes"
+            placeholder="How was it? What made it worth the trip?"
+            value={notes}
+            maxLength={1000}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+
+          {/* Future-ready fields — collected now, persisted in an upcoming update */}
+          <div className="quest-complete-form__future">
+            <div className="quest-complete-form__stars" role="group" aria-label="Rating">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  type="button"
+                  className={`quest-complete-form__star${n <= rating ? ' is-on' : ''}`}
+                  aria-label={`${n} star${n > 1 ? 's' : ''}`}
+                  onClick={() => setRating(n)}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+            <div className="quest-complete-form__toggles">
+              <button
+                type="button"
+                className={`quest-complete-form__chip${recommend === true ? ' is-on' : ''}`}
+                onClick={() => setRecommend(recommend === true ? null : true)}
+              >
+                👍 Recommend
+              </button>
+              <button
+                type="button"
+                className={`quest-complete-form__chip${withFriends ? ' is-on' : ''}`}
+                onClick={() => setWithFriends((v) => !v)}
+              >
+                🧑‍🤝‍🧑 With friends
+              </button>
+            </div>
+            <p className="quest-complete-form__hint">
+              Photos, ratings &amp; tags save with your memory in an upcoming update.
+            </p>
+          </div>
+
+          <div className="quest-sheet__actions">
+            <button type="button" onClick={() => setShowCompleteForm(false)}>
+              Back
+            </button>
+            <button
+              type="button"
+              className="quest-sheet__primary"
+              disabled={completionState === 'completing'}
+              onClick={handleConfirmComplete}
+            >
+              {completionState === 'completing' ? 'Completing…' : 'Complete ✓'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Wayfinding (always available) ─────────────────────────────────── */}
       <div className="quest-sheet__actions">
         <button type="button" disabled={routeDisabled} onClick={onShowRoute}>
           Show route
@@ -200,21 +355,20 @@ export function QuestPreviewCard({
         </a>
       </div>
 
-      {/* Additional info from seed: duration, source (safe access since NearbyQuest subset) */}
       {(() => {
-        const meta = (quest as any).metadata || {};
+        const meta = (quest as unknown as { metadata?: Record<string, unknown> }).metadata || {}
         return (
           <div className="quest-sheet__meta text-xs mt-1 opacity-80">
-            {meta.duration && `Duration: ${meta.duration} · `}
-            {meta.source && `Source: ${meta.source}`}
+            {meta.duration ? `Duration: ${String(meta.duration)} · ` : ''}
+            {meta.source ? `Source: ${String(meta.source)}` : ''}
           </div>
-        );
+        )
       })()}
 
-      {onNext && (
+      {onNext && !showCompleteForm && (
         <div className="quest-sheet__actions mt-2">
-          <button type="button" onClick={onNext} className="quest-sheet__primary">
-            Next
+          <button type="button" onClick={onNext}>
+            Skip — show me the next one
           </button>
         </div>
       )}
