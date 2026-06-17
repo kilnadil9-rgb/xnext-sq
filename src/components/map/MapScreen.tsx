@@ -422,6 +422,16 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
               <span><strong>{completedCount ?? '—'}</strong> Completed</span>
               <span><strong>{dreamCount ?? '—'}</strong> Dream List</span>
             </div>
+            {/* Honesty: don't imply exact distances when we're on the regional fallback */}
+            {!isLive && (
+              <button
+                type="button"
+                className="radar-approx"
+                onClick={requestLocation}
+              >
+                📍 Using approximate location — tap to enable GPS
+              </button>
+            )}
           </div>
         )}
 
@@ -493,6 +503,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
               clearRoute()
             }}
             onNext={handleNext}
+            locationApproximate={locationStatus !== 'active'}
           />
         )}
       </div>

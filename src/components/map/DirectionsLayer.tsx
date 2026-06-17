@@ -14,7 +14,7 @@ interface Props {
 export function DirectionsLayer({
   origin,
   destination,
-  travelMode = 'WALKING' as google.maps.TravelMode,
+  travelMode = 'DRIVING' as google.maps.TravelMode,
   onRoute,
   onError,
 }: Props) {
@@ -71,7 +71,7 @@ export function DirectionsLayer({
   return null
 }
 
-/** External fallback: opens the native Google Maps app / web. */
+/** External fallback (secondary): opens the native Google Maps app / web. */
 export function googleMapsDirectionsUrl(dest: LatLng): string {
-  return `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=walking`
+  return `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=driving`
 }

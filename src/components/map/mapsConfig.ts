@@ -8,7 +8,13 @@ export const MAPS_MAP_ID =
   (import.meta.env.VITE_GOOGLE_MAPS_MAP_ID as string | undefined) ??
   'DEMO_MAP_ID'
 
-export const FALLBACK_CENTER: LatLng = { lat: 40.4168, lng: -3.7038 }
+/**
+ * Regional fallback ONLY — used before GPS resolves or if it fails.
+ * Tri-Cities, WA (launch market) so an un-located user still sees the right
+ * region instead of a random world city. Never treat this as the real user
+ * position: distances computed from here are approximate and must be labelled.
+ */
+export const FALLBACK_CENTER: LatLng = { lat: 46.2396, lng: -119.1006 }
 
 /** Used by HomePage before location is granted — shows planet-scale context, not a random city */
 export const WORLD_VIEW_CENTER: LatLng = { lat: 25, lng: 0 }

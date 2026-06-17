@@ -17,6 +17,8 @@ interface Props {
   onShowRoute: () => void
   onClose: () => void
   onNext?: () => void
+  /** True when we don't have a real GPS fix — distances are estimates. */
+  locationApproximate?: boolean
 }
 
 /** Placeholder reward — real XP economy lands later. */
@@ -43,6 +45,7 @@ export function QuestPreviewCard({
   onShowRoute,
   onClose,
   onNext,
+  locationApproximate = false,
 }: Props) {
   const [saveState, setSaveState] = useState<SaveState>('checking')
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -105,8 +108,14 @@ export function QuestPreviewCard({
 
   const handleStart = () => {
     setActiveAdventure(true)
-    if (!routeSummary) onShowRoute()
+    // Compute + draw the in-app route immediately (needs a real origin) so the
+    // route sheet can show distance + drive time. Stays inside XNEXT.
+    if (!routeDisabled) onShowRoute()
   }
+
+  const distLabel = locationApproximate
+    ? `~${formatDistance(quest.distance_km * 1000)} away (approx)`
+    : `${formatDistance(quest.distance_km * 1000)} away`
 
   const handleConfirmComplete = async () => {
     setCompletionState('completing')
@@ -183,8 +192,7 @@ export function QuestPreviewCard({
 
       <h2>{quest.title}</h2>
       <p className="quest-sheet__meta">
-        {quest.experience_class} · {formatDistance(quest.distance_km * 1000)}{' '}
-        away
+        {quest.experience_class} · {distLabel}
         {quest.location_name ? ` · ${quest.location_name}` : ''}
         {quest.sq_score !== null && (
           <span className="badge badge--sq"> SQ {Math.round(quest.sq_score)}</span>
@@ -193,11 +201,6 @@ export function QuestPreviewCard({
       </p>
       {quest.description && (
         <p className="quest-sheet__description">{quest.description}</p>
-      )}
-      {routeSummary && (
-        <p className="quest-sheet__route">
-          {routeSummary.distanceText} · {routeSummary.durationText} walk
-        </p>
       )}
       {saveError && (
         <p className="quest-sheet__error" role="alert">
@@ -244,12 +247,51 @@ export function QuestPreviewCard({
         </div>
       )}
 
-      {/* ── Middle: adventure in progress ─────────────────────────────────── */}
+      {/* ── Middle: in-app route sheet ────────────────────────────────────── */}
       {!isDone && activeAdventure && !showCompleteForm && (
-        <>
-          <p className="quest-sheet__meta" style={{ textAlign: 'center', marginTop: 4 }}>
-            Adventure started — the map is centered here. Finish when you’ve made it.
-          </p>
+        <div className="quest-route">
+          <div className="quest-route__head">
+            <span className="quest-route__label">Route to</span>
+            <span className="quest-route__name">{quest.title}</span>
+            {quest.location_name && (
+              <span className="quest-route__sub">{quest.location_name}</span>
+            )}
+          </div>
+
+          <div className="quest-route__stats">
+            {routeSummary ? (
+              <span className="quest-route__eta">
+                {routeSummary.distanceText} · {routeSummary.durationText} drive
+              </span>
+            ) : routeDisabled ? (
+              <span className="quest-route__eta quest-route__eta--muted">
+                Enable location to see your in-app route
+              </span>
+            ) : (
+              <span className="quest-route__eta quest-route__eta--muted">
+                Calculating route…
+              </span>
+            )}
+          </div>
+
+          <div className="quest-sheet__actions">
+            <button
+              type="button"
+              className="quest-sheet__primary"
+              disabled={routeDisabled}
+              onClick={onShowRoute}
+            >
+              Start Route
+            </button>
+            <a
+              href={googleMapsDirectionsUrl({ lat: quest.lat, lng: quest.lng })}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open in Google Maps
+            </a>
+          </div>
+
           <div className="quest-sheet__actions">
             <button
               type="button"
@@ -258,20 +300,11 @@ export function QuestPreviewCard({
             >
               Complete Adventure
             </button>
-          </div>
-          <div className="quest-sheet__actions">
             <button type="button" onClick={onClose}>
               Not Today
             </button>
-            <button
-              type="button"
-              disabled={saveState === 'saving' || saveState === 'saved'}
-              onClick={handleSave}
-            >
-              {saveState === 'saved' ? '✓ Saved' : 'Save for Later'}
-            </button>
           </div>
-        </>
+        </div>
       )}
 
       {/* ── Completion form ───────────────────────────────────────────────── */}
@@ -341,20 +374,6 @@ export function QuestPreviewCard({
         </div>
       )}
 
-      {/* ── Wayfinding (always available) ─────────────────────────────────── */}
-      <div className="quest-sheet__actions">
-        <button type="button" disabled={routeDisabled} onClick={onShowRoute}>
-          Show route
-        </button>
-        <a
-          href={googleMapsDirectionsUrl({ lat: quest.lat, lng: quest.lng })}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Open in Google Maps
-        </a>
-      </div>
-
       {(() => {
         const meta = (quest as unknown as { metadata?: Record<string, unknown> }).metadata || {}
         return (
@@ -365,7 +384,7 @@ export function QuestPreviewCard({
         )
       })()}
 
-      {onNext && !showCompleteForm && (
+      {onNext && !isDone && !activeAdventure && !showCompleteForm && (
         <div className="quest-sheet__actions mt-2">
           <button type="button" onClick={onNext}>
             Skip — show me the next one

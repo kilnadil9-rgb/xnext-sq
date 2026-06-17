@@ -4,7 +4,9 @@ import type { LocationStatus, UserLocationState } from '../components/map/types'
 const GEO_OPTIONS: PositionOptions = {
   enableHighAccuracy: true,
   timeout: 10_000,
-  maximumAge: 30_000,
+  // Force a fresh fix rather than a stale/coarse cached one — the cached
+  // value was a common cause of "my location is off".
+  maximumAge: 0,
 }
 
 /**
