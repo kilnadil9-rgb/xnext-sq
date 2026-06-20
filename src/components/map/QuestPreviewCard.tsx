@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { dreamListService } from '../../services/dreamListService'
 import { questCompletionService } from '../../services/questCompletionService'
-import { formatDistance } from '../../lib/distance'
+import { formatDistance, haversineMeters } from '../../lib/distance'
 import type { RankedQuest } from '../../lib/adventureRadar'
-import type { RouteSummary } from './types'
+import type { LatLng } from './types'
 import { googleMapsDirectionsUrl } from './DirectionsLayer'
 
 type SaveState = 'checking' | 'not_saved' | 'saving' | 'saved'
@@ -14,13 +14,10 @@ type View = 'compact' | 'detail' | 'route'
 
 interface Props {
   quest: RankedQuest
-  routeSummary: RouteSummary | null
-  routeDisabled: boolean
-  onShowRoute: () => void
+  /** Single source of truth for distance — the real user GPS fix, or null. */
+  userLocation: LatLng | null
   onClose: () => void
   onNext?: () => void
-  /** True when we don't have a real GPS fix — distances are estimates. */
-  locationApproximate?: boolean
 }
 
 const CLASS_ICON: Record<string, string> = {
@@ -43,12 +40,9 @@ function xpFor(quest: RankedQuest): number {
  */
 export function QuestPreviewCard({
   quest,
-  routeSummary,
-  routeDisabled,
-  onShowRoute,
+  userLocation,
   onClose,
   onNext,
-  locationApproximate = false,
 }: Props) {
   const [view, setView] = useState<View>('compact')
   const [saveState, setSaveState] = useState<SaveState>('checking')
@@ -106,8 +100,6 @@ export function QuestPreviewCard({
 
   const handleStart = () => {
     setView('route')
-    // Compute + draw the in-app route immediately (needs a real origin).
-    if (!routeDisabled) onShowRoute()
   }
 
   const backToCompact = () => {
@@ -140,9 +132,14 @@ export function QuestPreviewCard({
   }
 
   const icon = CLASS_ICON[quest.experience_class] ?? '📍'
-  const distLabel = locationApproximate
-    ? `~${formatDistance(quest.distance_km * 1000)} away (approx)`
-    : `${formatDistance(quest.distance_km * 1000)} away`
+  // Single source of truth: distance is computed from the real user location.
+  // When there's no GPS fix we show no number (never a misleading "0 m").
+  const distanceMeters =
+    userLocation && Number.isFinite(quest.lat) && Number.isFinite(quest.lng)
+      ? haversineMeters(userLocation, { lat: quest.lat, lng: quest.lng })
+      : null
+  const distLabel =
+    distanceMeters !== null ? `${formatDistance(distanceMeters)} away` : 'Enable location for distance'
   const isDone = completionState === 'done'
   const saveBusy = saveState === 'checking' || saveState === 'saving' || saveState === 'saved'
 
@@ -251,24 +248,15 @@ export function QuestPreviewCard({
             </div>
 
             <div className="quest-route__stats">
-              <span className={`quest-route__eta${routeSummary ? '' : ' quest-route__eta--muted'}`}>
-                {routeSummary
-                  ? `${routeSummary.distanceText} · ${routeSummary.durationText} drive`
-                  : routeDisabled
-                    ? `${distLabel} · enable location for an in-app route`
-                    : distLabel}
+              <span className={`quest-route__eta${distanceMeters !== null ? '' : ' quest-route__eta--muted'}`}>
+                {distLabel}
               </span>
             </div>
 
             <div className="quest-sheet__actions">
-              {/* Start Route only once the in-app route is actually ready */}
-              {routeSummary && (
-                <button type="button" className="quest-sheet__primary" onClick={onShowRoute}>
-                  Start Route
-                </button>
-              )}
+              {/* XNEXT owns discovery; Google owns turn-by-turn navigation. */}
               <a
-                className={routeSummary ? undefined : 'quest-sheet__primary'}
+                className="quest-sheet__primary"
                 href={googleMapsDirectionsUrl({ lat: quest.lat, lng: quest.lng })}
                 target="_blank"
                 rel="noopener noreferrer"

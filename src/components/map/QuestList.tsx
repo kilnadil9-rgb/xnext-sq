@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
-import { formatDistance } from '../../lib/distance'
+import { formatDistance, haversineMeters } from '../../lib/distance'
+import type { LatLng } from './types'
 import {
   RADAR_SORT_OPTIONS,
   type RadarSortMode,
@@ -19,6 +20,8 @@ interface Props {
   /** Widen the search radius to the next option (hidden when already at max). */
   onWiden?: () => void
   canWiden?: boolean
+  /** Single source of truth for distance — the real user GPS fix, or null. */
+  userLocation?: LatLng | null
 }
 
 /** Adventure Radar list: ranked nearby quests beside/below the map. */
@@ -34,7 +37,14 @@ export function QuestList({
   onRetry,
   onWiden,
   canWiden = false,
+  userLocation = null,
 }: Props) {
+  // Distance from the real user location when we have a GPS fix; otherwise fall
+  // back to the server's radar distance. Keeps every distance on one source.
+  const displayMeters = (quest: RankedQuest): number =>
+    userLocation && Number.isFinite(quest.lat) && Number.isFinite(quest.lng)
+      ? haversineMeters(userLocation, { lat: quest.lat, lng: quest.lng })
+      : quest.distance_km * 1000
   return (
     <section className="radar-list" aria-label="Nearby quests">
       <header className="radar-list__header">
@@ -128,7 +138,7 @@ export function QuestList({
                   <span className="radar-row__class">
                     {quest.experience_class}
                   </span>
-                  · {formatDistance(quest.distance_km * 1000)}
+                  · {formatDistance(displayMeters(quest))}
                   {quest.location_name ? ` · ${quest.location_name}` : ''}
                 </span>
                 <span className="radar-row__badges">
