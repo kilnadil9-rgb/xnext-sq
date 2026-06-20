@@ -9,6 +9,9 @@ import { extractMessage } from '../lib/serviceUtils'
 import { toEwktPoint, questSlug } from '../lib/geo'
 import type { LatLng } from '../components/map/types'
 
+// Stripe publishable key (client-safe). Required for future Elements but present for the integration.
+export const STRIPE_PUBLISHABLE_KEY = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
+
 export type { ServiceResult } from '../lib/serviceUtils'
 
 // ── Catalog ──────────────────────────────────────────────────────────────────
@@ -36,15 +39,17 @@ export interface ListingPackage {
   durationHours: number
   isFeatured: boolean
   blurb: string
+  /** Stripe Price ID (create matching products/prices in the shared Stripe account; use distinct from VHS Live). */
+  stripePriceId: string
 }
 
 /** Pricing model — visibility windows enforced server-side via expires_at. */
 export const LISTING_PACKAGES: ListingPackage[] = [
-  { tier: 'yard_sale', label: 'Yard Sale', priceLabel: '$0.99', priceUsd: 0.99, durationHours: 24, isFeatured: false, blurb: 'Visible for 24 hours' },
-  { tier: 'local_event', label: 'Local Event', priceLabel: '$4.99', priceUsd: 4.99, durationHours: 72, isFeatured: false, blurb: 'Visible up to 3 days' },
-  { tier: 'business_spotlight', label: 'Business Spotlight', priceLabel: '$9.99', priceUsd: 9.99, durationHours: 168, isFeatured: false, blurb: 'Visible up to 7 days' },
-  { tier: 'featured_business', label: 'Featured Business', priceLabel: '$19.99', priceUsd: 19.99, durationHours: 336, isFeatured: true, blurb: '14 days · ranks higher' },
-  { tier: 'monthly_partner', label: 'Monthly Local Partner', priceLabel: '$49.99/mo', priceUsd: 49.99, durationHours: 720, isFeatured: true, blurb: 'Recurring visibility (30 days)' },
+  { tier: 'yard_sale', label: 'Yard Sale', priceLabel: '$0.99', priceUsd: 0.99, durationHours: 24, isFeatured: false, blurb: 'Visible for 24 hours', stripePriceId: 'price_xnext_yardsale_099' },
+  { tier: 'local_event', label: 'Local Event', priceLabel: '$4.99', priceUsd: 4.99, durationHours: 72, isFeatured: false, blurb: 'Visible up to 3 days', stripePriceId: 'price_xnext_localevent_499' },
+  { tier: 'business_spotlight', label: 'Business Spotlight', priceLabel: '$9.99', priceUsd: 9.99, durationHours: 168, isFeatured: false, blurb: 'Visible up to 7 days', stripePriceId: 'price_xnext_spotlight_999' },
+  { tier: 'featured_business', label: 'Featured Business', priceLabel: '$19.99', priceUsd: 19.99, durationHours: 336, isFeatured: true, blurb: '14 days · ranks higher', stripePriceId: 'price_xnext_featured_1999' },
+  { tier: 'monthly_partner', label: 'Monthly Local Partner', priceLabel: '$49.99/mo', priceUsd: 49.99, durationHours: 720, isFeatured: true, blurb: 'Recurring visibility (30 days)', stripePriceId: 'price_xnext_partner_mo_4999' },
 ]
 
 export function packageForTier(tier: ListingTier): ListingPackage | undefined {
@@ -107,10 +112,10 @@ export const listingService = {
    * published) — admins approve before it ever appears on the map. Reuses the
    * quests table (migration 018) so it flows through the existing map RPC.
    *
-   * TODO(stripe): Stripe is not installed. We simulate a settled payment
-   * (payment_status: 'paid') so the end-to-end flow is testable. Wire Stripe
-   * Checkout + a webhook that sets payment_status='paid' and stripe_payment_id,
-   * and start listings at payment_status='pending' until the webhook confirms.
+   * Payment starts as 'pending'. Client then calls createCheckoutSession to get
+   * Stripe URL. The webhook (using metadata) sets payment_status='paid' and
+   * stripe_payment_id on success. Visibility requires status=published AND
+   * payment_status=paid AND active time window.
    */
   async createListing(input: CreateListingInput): Promise<ServiceResult<Quest>> {
     const { data: { user } } = await supabase.auth.getUser()
@@ -153,7 +158,7 @@ export const listingService = {
       is_paid_listing: true,
       tier: input.tier,
       price_paid: pkg.priceUsd,
-      payment_status: 'paid' as const, // TODO(stripe): real webhook sets this
+      payment_status: 'pending' as const,
       stripe_payment_id: null,
       starts_at: startsAt.toISOString(),
       is_featured: pkg.isFeatured,
@@ -170,5 +175,43 @@ export const listingService = {
 
     if (error) return { data: null, error: extractMessage(error) }
     return { data, error: null }
+  },
+
+  /**
+   * Create a Stripe Checkout session for a *pending* paid listing.
+   * Returns { url } to redirect the user to Stripe-hosted checkout.
+   * Uses the shared Stripe account but isolates via metadata.app = "xnext".
+   */
+  async createCheckoutSession(params: { listingId: string; priceId: string; listingType?: string }): Promise<ServiceResult<{ url: string }>> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: null, error: 'Not authenticated' }
+
+    const { data: { session } } = await supabase.auth.getSession()
+    const accessToken = session?.access_token
+
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    if (!supabaseUrl) return { data: null, error: 'Supabase URL not configured' }
+
+    const res = await fetch(`${supabaseUrl}/functions/v1/create-checkout-session`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken ?? ''}`,
+      },
+      body: JSON.stringify({
+        price_id: params.priceId,
+        listing_id: params.listingId,
+        user_id: user.id,
+        listing_type: params.listingType,
+      }),
+    })
+
+    let data: { url?: string; error?: string } = {}
+    try { data = await res.json() } catch {}
+
+    if (!res.ok || !data.url) {
+      return { data: null, error: data.error || `Checkout failed (${res.status})` }
+    }
+    return { data: { url: data.url }, error: null }
   },
 }

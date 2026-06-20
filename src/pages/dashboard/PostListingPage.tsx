@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import {
   listingService,
   LISTING_TYPES,
@@ -21,7 +21,6 @@ const labelCls = 'mb-1 block text-sm font-medium text-foreground'
  * Pending Review (admins approve before it appears).
  */
 export function PostListingPage() {
-  const navigate = useNavigate()
   const { position: userPos } = useUserLocation(false)
 
   const [listingType, setListingType] = useState<ListingType>('yard_sale')
@@ -37,7 +36,6 @@ export function PostListingPage() {
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
 
   const pkg = LISTING_PACKAGES.find((p) => p.tier === tier)!
 
@@ -66,26 +64,26 @@ export function PostListingPage() {
       contact_email: contactEmail || null,
       contact_phone: contactPhone || null,
     })
-    setSubmitting(false)
     if (result.error || !result.data) {
+      setSubmitting(false)
       setError(result.error ?? 'Could not create the listing.')
       return
     }
-    setSuccess(true)
-    setTimeout(() => navigate('/dashboard/quests/mine'), 1400)
-  }
 
-  if (success) {
-    return (
-      <div className="mx-auto max-w-2xl py-10 text-center">
-        <div className="text-4xl mb-3">🎉</div>
-        <h1 className="text-xl font-semibold text-foreground">Submitted for review</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Your {pkg.label.toLowerCase()} listing is pending approval. Once approved it appears on
-          the map during its active window, then disappears automatically.
-        </p>
-      </div>
-    )
+    // Now initiate real Stripe Checkout (payment_status starts 'pending' in DB)
+    const co = await listingService.createCheckoutSession({
+      listingId: result.data.id,
+      priceId: pkg.stripePriceId,
+      listingType: listingType,
+    })
+    setSubmitting(false)
+    if (co.error || !co.data?.url) {
+      setError(co.error ?? 'Could not start Stripe checkout.')
+      return
+    }
+
+    // Redirect to Stripe (webhook will mark paid on success)
+    window.location.href = co.data.url
   }
 
   return (
@@ -210,10 +208,9 @@ export function PostListingPage() {
             placeholder="Optional" onChange={(e) => setContactPhone(e.target.value)} />
         </div>
 
-        {/* Payment placeholder (TODO: Stripe Checkout) */}
-        <div className="rounded-lg border border-dashed border-primary/40 bg-primary/5 p-3 text-xs text-muted-foreground">
-          Payment is a placeholder for now — submitting simulates a paid listing so you can test the
-          flow. Stripe Checkout will be wired here next.
+        {/* Stripe payment note */}
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 text-xs text-muted-foreground">
+          Secure checkout via Stripe. Your listing is created in "pending review". It becomes visible on the map only after admin approval + confirmed payment + active time window.
         </div>
 
         <button
@@ -221,7 +218,7 @@ export function PostListingPage() {
           disabled={submitting}
           className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
-          {submitting ? 'Submitting…' : `Pay ${pkg.priceLabel} & submit for review`}
+          {submitting ? 'Redirecting to payment…' : `Pay ${pkg.priceLabel} & submit for review`}
         </button>
 
         <p className="text-center text-[11px] text-muted-foreground">
