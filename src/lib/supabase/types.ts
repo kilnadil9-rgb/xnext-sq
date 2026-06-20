@@ -140,6 +140,23 @@ export type ChainUnlockCondition =
 
 export type PulseFrequency = 'realtime' | 'daily' | 'weekly'
 
+// ── Paid time-sensitive listings (migration 018) ─────────────────────────────
+export type ListingType =
+  | 'yard_sale'
+  | 'local_event'
+  | 'business_promo'
+  | 'market_show'
+  | 'community_event'
+
+export type ListingTier =
+  | 'yard_sale'
+  | 'local_event'
+  | 'business_spotlight'
+  | 'featured_business'
+  | 'monthly_partner'
+
+export type PaymentStatus = 'unpaid' | 'pending' | 'paid' | 'refunded'
+
 // Standard Supabase Json type for json/jsonb columns (per task requirement)
 export type Json =
   | string
@@ -175,6 +192,18 @@ export interface Quest {
   metadata: Json
   created_at: string
   updated_at: string
+  // Paid time-sensitive listing fields (migration 018; null/false on organic quests)
+  listing_type?: ListingType | null
+  is_paid_listing?: boolean
+  tier?: ListingTier | null
+  price_paid?: number | null
+  payment_status?: PaymentStatus
+  stripe_payment_id?: string | null
+  starts_at?: string | null
+  is_featured?: boolean
+  business_name?: string | null
+  contact_email?: string | null
+  contact_phone?: string | null
   // scoring_factors and availability_windows are NOT columns on the quests table
   // (per review). They have been removed from Quest Row type to avoid phantom
   // properties. Use QuestByIdResult for getQuestById() if/when they are sourced
@@ -211,6 +240,11 @@ export interface NearbyQuest {
   lat: number
   /** From ST_X(location_point) */
   lng: number
+  // Listing fields (migration 018; undefined until the RPC is updated)
+  listing_type?: ListingType | null
+  is_featured?: boolean
+  starts_at?: string | null
+  expires_at?: string | null
 }
 
 // ─── SQ Domain tables (derived directly from migrations 008-013) ──────────────

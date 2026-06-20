@@ -30,6 +30,16 @@ interface ReviewQuest {
   created_by: string
   created_at: string
   status: QuestStatus
+  // Paid-listing fields (migration 018; null on organic discoveries)
+  listing_type: string | null
+  is_paid_listing: boolean | null
+  payment_status: string | null
+  price_paid: number | null
+  tier: string | null
+  is_featured: boolean | null
+  business_name: string | null
+  starts_at: string | null
+  expires_at: string | null
 }
 
 type ActionState = 'idle' | 'approving' | 'rejecting' | 'done'
@@ -58,7 +68,7 @@ export function AdminReviewPage() {
 
     const { data, error } = await supabase
       .from('quests')
-      .select('id, title, description, experience_class, location_name, city, country_code, media_urls, created_by, created_at, status')
+      .select('id, title, description, experience_class, location_name, city, country_code, media_urls, created_by, created_at, status, listing_type, is_paid_listing, payment_status, price_paid, tier, is_featured, business_name, starts_at, expires_at')
       .eq('status', 'pending_review')
       .order('created_at', { ascending: true })
 
@@ -104,6 +114,38 @@ export function AdminReviewPage() {
     setTimeout(() => {
       setQuests((prev) => prev.filter((q) => q.id !== id))
     }, 600)
+  }
+
+  const patchQuest = (id: string, patch: Partial<ReviewQuest>) =>
+    setQuests((prev) => prev.map((q) => (q.id === id ? { ...q, ...patch } : q)))
+
+  const handleToggleFeatured = async (id: string, value: boolean) => {
+    const { error } = await supabase
+      .from('quests')
+      .update({ is_featured: value, updated_at: new Date().toISOString() } as never)
+      .eq('id', id)
+    if (error) setActionError((s) => ({ ...s, [id]: error.message }))
+    else patchQuest(id, { is_featured: value })
+  }
+
+  const handleSetExpiry = async (id: string, localValue: string) => {
+    if (!localValue) return
+    const iso = new Date(localValue).toISOString()
+    const { error } = await supabase
+      .from('quests')
+      .update({ expires_at: iso, updated_at: new Date().toISOString() } as never)
+      .eq('id', id)
+    if (error) setActionError((s) => ({ ...s, [id]: error.message }))
+    else patchQuest(id, { expires_at: iso })
+  }
+
+  // ISO → value for <input type="datetime-local">
+  const toLocalInput = (iso: string | null): string => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return ''
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
   }
 
   // Show nothing while auth resolves (redirect fires in useEffect)
@@ -201,6 +243,52 @@ export function AdminReviewPage() {
                   </p>
                 </div>
               </div>
+
+              {quest.is_paid_listing && (
+                <div className="mt-3 rounded-lg border border-[#f97316]/30 bg-[#f97316]/5 p-3 text-xs space-y-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold capitalize text-foreground">
+                      {quest.tier?.replace(/_/g, ' ') ?? 'Listing'}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 ${
+                        quest.payment_status === 'paid'
+                          ? 'bg-emerald-500/15 text-emerald-300'
+                          : 'bg-amber-500/15 text-amber-300'
+                      }`}
+                    >
+                      {quest.payment_status ?? 'unpaid'}
+                      {quest.price_paid != null ? ` · $${quest.price_paid}` : ''}
+                    </span>
+                    {quest.business_name && (
+                      <span className="text-muted-foreground">{quest.business_name}</span>
+                    )}
+                  </div>
+                  <div className="text-muted-foreground">
+                    Window: {quest.starts_at ? new Date(quest.starts_at).toLocaleString() : '—'}
+                    {' → '}
+                    {quest.expires_at ? new Date(quest.expires_at).toLocaleString() : '—'}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleFeatured(quest.id, !quest.is_featured)}
+                      className="rounded border border-border px-2 py-1 hover:bg-accent"
+                    >
+                      {quest.is_featured ? '★ Featured' : '☆ Make featured'}
+                    </button>
+                    <label className="flex items-center gap-1 text-muted-foreground">
+                      Expires
+                      <input
+                        type="datetime-local"
+                        defaultValue={toLocalInput(quest.expires_at)}
+                        onChange={(e) => handleSetExpiry(quest.id, e.target.value)}
+                        className="rounded border border-border bg-card px-1 py-0.5 text-foreground"
+                      />
+                    </label>
+                  </div>
+                </div>
+              )}
 
               {actionError[quest.id] && (
                 <p className="mt-2 text-xs text-destructive" role="alert">{actionError[quest.id]}</p>

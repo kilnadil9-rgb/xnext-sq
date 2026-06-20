@@ -6,6 +6,7 @@ import { formatDistance, haversineMeters } from '../../lib/distance'
 import type { RankedQuest } from '../../lib/adventureRadar'
 import type { LatLng } from './types'
 import { googleMapsDirectionsUrl } from './DirectionsLayer'
+import { listingBadge } from '../../services/listingService'
 
 type SaveState = 'checking' | 'not_saved' | 'saving' | 'saved'
 type CompletionState = 'checking' | 'not_done' | 'completing' | 'done'
@@ -142,6 +143,7 @@ export function QuestPreviewCard({
     distanceMeters !== null ? `${formatDistance(distanceMeters)} away` : 'Enable location for distance'
   const isDone = completionState === 'done'
   const saveBusy = saveState === 'checking' || saveState === 'saving' || saveState === 'saved'
+  const badge = listingBadge(quest)
 
   /* ── Celebration overlay (adventure ending) ───────────────────────────── */
   if (celebrating) {
@@ -187,6 +189,11 @@ export function QuestPreviewCard({
         >
           <span className="quest-compact__icon" aria-hidden="true">{icon}</span>
           <span className="quest-compact__info">
+            {badge && (
+              <span className={`quest-listing-badge quest-listing-badge--${badge.kind}`}>
+                {badge.label}
+              </span>
+            )}
             <span className="quest-compact__title">{quest.title}</span>
             <span className="quest-compact__meta">
               <span className="quest-compact__class">{quest.experience_class}</span>
@@ -360,6 +367,11 @@ export function QuestPreviewCard({
         ✕
       </button>
 
+      {badge && (
+        <span className={`quest-listing-badge quest-listing-badge--${badge.kind}`}>
+          {badge.label}
+        </span>
+      )}
       <h2>{quest.title}</h2>
       <p className="quest-sheet__meta">
         {quest.experience_class} · {distLabel}

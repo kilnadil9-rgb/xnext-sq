@@ -272,6 +272,7 @@ export function DashboardLayout() {
             <NavItem to="/dashboard/dream-list" label="Dream List" icon={DreamListIcon} />
             <NavItem to="/dashboard/pulse" label="Pulse" icon={PulseIcon} />
             <NavItem to="/dashboard/quests/new" label="Create Quest" icon={QuestIcon} />
+            <NavItem to="/dashboard/post-event" label="Post Event" icon={QuestIcon} />
             <NavItem to="/dashboard/completed" label="Memories" icon={QuestIcon} />
             <NavItem to="/dashboard/preferences" label="Preferences" icon={UsersIcon} />
           </ul>
@@ -368,9 +369,17 @@ export function DashboardLayout() {
               {/* P2: Discover — real submission + photo upload to quest-photos */}
               {openSheet === 'discover' && (
                 <div>
-                  <p className="text-sm text-white/60 mb-4">
+                  <p className="text-sm text-white/60 mb-3">
                     Share a hidden gem with the community. No businesses — only real experiences.
                   </p>
+                  <Link
+                    to="/dashboard/post-event"
+                    onClick={closeSheet}
+                    className="mb-4 flex items-center justify-between rounded-lg border border-[#f97316]/40 bg-[#f97316]/10 px-3 py-2 text-xs text-[#fdba74]"
+                  >
+                    <span>Hosting a yard sale, pop-up, or event? Post it as a listing</span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
 
                   {/* Location status indicator */}
                   {locStatus !== 'active' && (

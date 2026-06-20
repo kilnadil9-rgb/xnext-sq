@@ -493,6 +493,32 @@
   text-transform: capitalize;
 }
 
+/* Time-sensitive paid-listing badge */
+.quest-listing-badge {
+  display: inline-block;
+  align-self: flex-start;
+  margin-bottom: 2px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  background: rgba(249, 115, 22, 0.18);
+  border: 1px solid rgba(249, 115, 22, 0.45);
+  color: #fdba74;
+}
+.quest-listing-badge--today {
+  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(239, 68, 68, 0.5);
+  color: #fca5a5;
+}
+.quest-listing-badge--featured {
+  background: rgba(253, 224, 71, 0.16);
+  border-color: rgba(253, 224, 71, 0.5);
+  color: #fde047;
+}
+
 .quest-compact__actions {
   display: flex;
   align-items: center;
