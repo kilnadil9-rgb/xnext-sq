@@ -45,7 +45,7 @@ export interface ListingPackage {
 
 /** Pricing model — visibility windows enforced server-side via expires_at. */
 export const LISTING_PACKAGES: ListingPackage[] = [
-  { tier: 'yard_sale', label: 'Yard Sale', priceLabel: '$0.99', priceUsd: 0.99, durationHours: 24, isFeatured: false, blurb: 'Visible for 24 hours', stripePriceId: 'price_xnext_yardsale_099' },
+  { tier: 'yard_sale', label: 'Yard Sale', priceLabel: '$0.99', priceUsd: 0.99, durationHours: 24, isFeatured: false, blurb: 'Visible for 24 hours', stripePriceId: 'price_1TkEsRLmIJ4bGVIs2MLjvCwD' },
   { tier: 'local_event', label: 'Local Event', priceLabel: '$4.99', priceUsd: 4.99, durationHours: 72, isFeatured: false, blurb: 'Visible up to 3 days', stripePriceId: 'price_xnext_localevent_499' },
   { tier: 'business_spotlight', label: 'Business Spotlight', priceLabel: '$9.99', priceUsd: 9.99, durationHours: 168, isFeatured: false, blurb: 'Visible up to 7 days', stripePriceId: 'price_xnext_spotlight_999' },
   { tier: 'featured_business', label: 'Featured Business', priceLabel: '$19.99', priceUsd: 19.99, durationHours: 336, isFeatured: true, blurb: '14 days · ranks higher', stripePriceId: 'price_xnext_featured_1999' },

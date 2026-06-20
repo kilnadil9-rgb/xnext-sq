@@ -30,7 +30,7 @@ type ListingTier =
 // Authoritative, server-side allow-list. Replace placeholder IDs with the real
 // XNEXT Price IDs (same Stripe account, distinct products from VHS Live).
 const XNEXT_PRICE_MAP: Record<string, { mode: 'payment' | 'subscription'; tier: ListingTier }> = {
-  price_xnext_yardsale_099:    { mode: 'payment',      tier: 'yard_sale' },
+  price_1TkEsRLmIJ4bGVIs2MLjvCwD: { mode: 'payment',   tier: 'yard_sale' },
   price_xnext_localevent_499:  { mode: 'payment',      tier: 'local_event' },
   price_xnext_spotlight_999:   { mode: 'payment',      tier: 'business_spotlight' },
   price_xnext_featured_1999:   { mode: 'payment',      tier: 'featured_business' },
