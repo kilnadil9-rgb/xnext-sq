@@ -15,7 +15,7 @@ export function DataRequestsPage() {
         <li>Delete Account (with 30-day recovery window)</li>
       </ul>
       <p className="mt-4 text-sm">
-        For assistance beyond self-service tools, email <a href="mailto:privacy@xnext.example" className="underline">privacy@xnext.example</a> or use Contact Support in the footer.
+        For assistance beyond self-service tools, email <a href="mailto:privacy@xnext.app" className="underline">privacy@xnext.app</a> or use Contact Support in the footer.
       </p>
       <p className="mt-6 text-xs text-muted-foreground">XNEXT honors GDPR, CCPA, and Washington consumer privacy rights.</p>
     </div>

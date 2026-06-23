@@ -173,3 +173,25 @@ code {
   padding: 4px 8px;
   background: var(--code-bg);
 }
+
+/* ── Mobile polish: prevent accidental horizontal scroll/overflow ─────────
+   Long titles or wide elements should never push the viewport sideways.   */
+html,
+body {
+  overflow-x: hidden;
+}
+
+/* ── Respect reduced-motion: calm the ambient animations ──────────────────
+   Honors the OS "Reduce Motion" setting — disables the infinite glow/pulse/
+   sweep/ping loops to cut battery drain and motion sensitivity, while
+   keeping the UI fully functional and instant.                            */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

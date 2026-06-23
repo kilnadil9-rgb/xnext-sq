@@ -72,7 +72,7 @@ export function TermsOfServicePage() {
 
         <div>
           <h2 className="text-lg font-semibold mb-2">8. Contact</h2>
-          <p>Questions about these Terms: support@xnext.example or the Contact Support link in the Trust Center.</p>
+          <p>Questions about these Terms: support@xnext.app or the Contact Support link in the Trust Center.</p>
         </div>
 
         <div className="pt-4 text-xs text-muted-foreground border-t">

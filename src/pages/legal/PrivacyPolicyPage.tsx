@@ -88,7 +88,7 @@ export function PrivacyPolicyPage() {
         <div>
           <h2 className="text-lg font-semibold mb-2">10. Contact</h2>
           <p>
-            For privacy requests, deletion assistance, or questions: <a href="mailto:privacy@xnext.example" className="underline">privacy@xnext.example</a> or use Contact Support in the app footer.
+            For privacy requests, deletion assistance, or questions: <a href="mailto:privacy@xnext.app" className="underline">privacy@xnext.app</a> or use Contact Support in the app footer.
             You may also submit Data Requests via the Trust Center link.
           </p>
         </div>

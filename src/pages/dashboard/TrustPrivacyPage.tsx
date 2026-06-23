@@ -120,10 +120,10 @@ export function TrustPrivacyPage() {
           <span className="font-semibold text-foreground">Questions?</span>{' '}
           Email{' '}
           <a
-            href="mailto:privacy@xnext.example"
+            href="mailto:privacy@xnext.app"
             className="underline text-[#f97316] hover:text-[#f97316]/80"
           >
-            privacy@xnext.example
+            privacy@xnext.app
           </a>
           . XNEXT respects GDPR, CCPA, and Washington State consumer privacy law. You can
           export or delete your data at any time with no waiting period.

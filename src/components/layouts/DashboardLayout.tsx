@@ -236,7 +236,7 @@ export function DashboardLayout() {
   }, [profile, navigate])
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="flex h-dvh overflow-hidden bg-background">
       {/* ── Sidebar (persistent on non-map pages; overlay/drawer only on map home via hamburger) ───────────────── */}
       <aside
         className={`
@@ -275,6 +275,7 @@ export function DashboardLayout() {
             <NavItem to="/dashboard/post-event" label="Post Event" icon={QuestIcon} />
             <NavItem to="/dashboard/completed" label="Memories" icon={QuestIcon} />
             <NavItem to="/dashboard/preferences" label="Preferences" icon={UsersIcon} />
+            <NavItem to="/dashboard/trust" label="Trust & Privacy" icon={DreamListIcon} />
           </ul>
 
           {/* P3: Admin section — hidden from non-admin users at the UI level */}
@@ -624,7 +625,7 @@ export function DashboardLayout() {
               <Link to="/terms-of-service" className="hover:text-foreground hover:underline">Terms of Service</Link>
               <Link to="/community-guidelines" className="hover:text-foreground hover:underline">Community Guidelines</Link>
               <Link to="/data-requests" className="hover:text-foreground hover:underline">Data Requests</Link>
-              <a href="mailto:support@xnext.example" className="hover:text-foreground hover:underline">Contact Support</a>
+              <a href="mailto:support@xnext.app" className="hover:text-foreground hover:underline">Contact Support</a>
               <Link to="/philosophy" className="hover:text-foreground hover:underline">Product Philosophy</Link>
             </div>
             <p className="mt-1 text-center text-[10px] opacity-70">

@@ -402,6 +402,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
               questCount={rankedQuests.length}
               isLive={isLive}
               locationStatus={locationStatus}
+              accuracy={accuracy}
               onRequestLocation={requestLocation}
             />
             {/* Progress system — sense of advancement, not endless scrolling */}
@@ -410,8 +411,10 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
               <span><strong>{completedCount ?? '—'}</strong> Completed</span>
               <span><strong>{dreamCount ?? '—'}</strong> Dream List</span>
             </div>
-            {/* Honesty: don't imply exact distances when we're on the regional fallback */}
-            {!isLive && (
+            {/* Honesty: don't imply exact distances when we're on the regional
+                fallback. Suppressed while actively locating so the label doesn't
+                flash "approximate" during the GPS handshake. */}
+            {!isLive && locationStatus !== 'locating' && locationStatus !== 'idle' && (
               <button
                 type="button"
                 className="radar-approx"

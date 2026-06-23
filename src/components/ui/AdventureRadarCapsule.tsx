@@ -13,6 +13,8 @@ interface AdventureRadarCapsuleProps {
   questCount: number
   isLive: boolean
   locationStatus: LocationStatus
+  /** GPS accuracy in meters (when known) — drives the precise vs. approximate label. */
+  accuracy?: number | null
   onRequestLocation?: () => void
 }
 
@@ -20,11 +22,25 @@ export function AdventureRadarCapsule({
   questCount,
   isLive,
   locationStatus,
+  accuracy = null,
   onRequestLocation,
 }: AdventureRadarCapsuleProps) {
   const needsLocation =
     locationStatus === 'denied' || locationStatus === 'unavailable' || locationStatus === 'error'
   const isLocating = locationStatus === 'idle' || locationStatus === 'locating'
+
+  // Explicit location-confidence line: Locating… / Location found / Approximate.
+  // A coarse fix (> ~150 m, e.g. IP/Wi-Fi based) is shown as "Approximate".
+  const isApproximate = typeof accuracy === 'number' && accuracy > 150
+  const locationLine: string | null = needsLocation
+    ? 'Tap Enable to find experiences near you'
+    : isLocating
+      ? null
+      : isApproximate
+        ? `Approximate location · ±${Math.round(accuracy as number)}m`
+        : isLive
+          ? 'Location found'
+          : null
 
   return (
     <div className="relative flex items-center gap-3 px-4 py-3 rounded-full border border-[#f97316]/60 bg-black/75 backdrop-blur-xl shadow-[0_0_24px_rgba(249,115,22,0.2),inset_0_0_0_1px_rgba(249,115,22,0.08)] overflow-hidden">
@@ -65,11 +81,21 @@ export function AdventureRadarCapsule({
           {needsLocation
             ? 'Location access needed'
             : isLocating
-              ? 'Finding your location…'
+              ? 'Locating you…'
               : questCount > 0
                 ? `${questCount} Experience${questCount !== 1 ? 's' : ''} Nearby`
                 : 'No quests nearby yet'}
         </div>
+        {locationLine && (
+          <div
+            className={`text-[11px] mt-0.5 leading-tight ${
+              isApproximate ? 'text-[#fde047]/80' : isLive ? 'text-[#4ade80]/90' : 'text-white/45'
+            }`}
+          >
+            {isLive && !isApproximate && !needsLocation ? '✓ ' : ''}
+            {locationLine}
+          </div>
+        )}
         {!needsLocation && !isLocating && questCount === 0 && (
           <div className="text-[11px] text-white/45 mt-0.5 leading-tight">
             Add the first discovery
