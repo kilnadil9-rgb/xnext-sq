@@ -204,6 +204,16 @@ export interface Quest {
   business_name?: string | null
   contact_email?: string | null
   contact_phone?: string | null
+  // Seasonal experience fields (migration 019). Defaults keep organic quests
+  // year-round unless a creator/admin classifies them.
+  season_tags?: string[]
+  active_months?: number[]
+  start_date?: string | null
+  end_date?: string | null
+  priority_boost?: number
+  is_evergreen?: boolean
+  /** Optional drive-to parking coordinate (migration 019); WKB hex when read. */
+  parking_point?: unknown | null
   // scoring_factors and availability_windows are NOT columns on the quests table
   // (per review). They have been removed from Quest Row type to avoid phantom
   // properties. Use QuestByIdResult for getQuestById() if/when they are sourced
@@ -245,6 +255,21 @@ export interface NearbyQuest {
   is_featured?: boolean
   starts_at?: string | null
   expires_at?: string | null
+  // Seasonal + parking fields (migration 019 RPC).
+  season_tags?: string[]
+  active_months?: number[]
+  start_date?: string | null
+  end_date?: string | null
+  priority_boost?: number
+  is_evergreen?: boolean
+  /** Computed by the RPC: is the experience in its active month/date window now. */
+  seasonal_active?: boolean
+  /** Computed by the RPC: 0 active seasonal · 1 date-based · 2 evergreen · 3 off-season. */
+  seasonal_rank?: number
+  /** From ST_Y(parking_point); null when no separate parking coordinate. */
+  parking_lat?: number | null
+  /** From ST_X(parking_point); null when no separate parking coordinate. */
+  parking_lng?: number | null
 }
 
 // ─── SQ Domain tables (derived directly from migrations 008-013) ──────────────
@@ -507,6 +532,14 @@ export interface Database {
             | 'published_at'
             | 'expires_at'
             | 'metadata'
+            | 'season_tags'
+            | 'active_months'
+            | 'start_date'
+            | 'end_date'
+            | 'priority_boost'
+            | 'is_evergreen'
+            | 'parking_point'
+            | 'is_featured'
           >
         >
         Relationships: []

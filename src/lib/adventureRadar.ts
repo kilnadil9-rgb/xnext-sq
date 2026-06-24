@@ -1,4 +1,5 @@
 import type { NearbyQuest } from './supabase/types'
+import { seasonalRank } from './season'
 
 /**
  * Adventure Radar ranking layer.
@@ -42,9 +43,34 @@ const WEIGHTS = {
   recency: 0.1,
   pulse: 0.1,
   preference: 0.15,
+  seasonal: 0.25,
 } as const
 
 const RECENCY_WINDOW_DAYS = 30
+
+/**
+ * Seasonal relevance multiplier (Phase 1.8 discovery logic):
+ *   active seasonal (0) → 1 · active date-based (1) → 0.9 ·
+ *   evergreen (2) → 0.4 · off-season (3) → 0.
+ * Prefers the RPC-computed seasonal_rank, falling back to a local computation
+ * so the ranker still works if the RPC predates migration 019.
+ */
+export function seasonalFactor(quest: NearbyQuest, now: number): number {
+  const rank =
+    typeof quest.seasonal_rank === 'number'
+      ? quest.seasonal_rank
+      : seasonalRank(quest, now)
+  switch (rank) {
+    case 0:
+      return 1
+    case 1:
+      return 0.9
+    case 2:
+      return 0.4
+    default:
+      return 0
+  }
+}
 
 /** Exponential distance decay: 1 at 0 km, ~0.14 at the radius edge. */
 export function proximityFactor(distanceKm: number, radiusKm: number): number {
@@ -91,6 +117,7 @@ export function rankQuests(
     const sq = maxSq > 0 ? (q.sq_score ?? 0) / maxSq : 0
     const recency = recencyFactor(q.published_at, now)
     const preferred = prefs?.has(q.experience_class) ?? false
+    const seasonal = seasonalFactor(q, now)
 
     return {
       ...q,
@@ -100,7 +127,8 @@ export function rankQuests(
         WEIGHTS.sq * sq +
         WEIGHTS.recency * recency +
         WEIGHTS.pulse * (hasPulse ? 1 : 0) +
-        WEIGHTS.preference * (preferred ? 1 : 0),
+        WEIGHTS.preference * (preferred ? 1 : 0) +
+        WEIGHTS.seasonal * seasonal,
     }
   })
 

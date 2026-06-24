@@ -54,10 +54,19 @@ export function QuestClusterer({ quests, selectedId, onSelect, isLive }: Props) 
           return null
         }
 
+        // Branded XNEXT marker (Phase 1.8 Part 2): orange disc, white ring,
+        // centered X logo, drop-pointer tail. Legible on light + dark maps and
+        // instantly distinguishable from Google's own POI pins.
         const pin = document.createElement('div')
         pin.className =
-          'quest-pin' + (quest.id === selectedId ? ' quest-pin--selected' : '') + (isLive ? ' live-glow' : '')
+          'xnext-marker' +
+          (quest.id === selectedId ? ' xnext-marker--selected' : '') +
+          (isLive ? ' xnext-marker--live' : '')
         pin.dataset.category = quest.experience_class
+        pin.innerHTML =
+          '<svg class="xnext-marker__x" viewBox="0 0 24 24" aria-hidden="true">' +
+          '<path d="M7.5 7.5 L16.5 16.5 M16.5 7.5 L7.5 16.5" />' +
+          '</svg>'
 
         const marker = new google.maps.marker.AdvancedMarkerElement({
           position: { lat, lng },

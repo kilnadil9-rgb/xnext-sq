@@ -1226,3 +1226,260 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   XNEXT Phase 1.8
+   ──────────────────────────────────────────────────────────────────────── */
+
+/* ── Part 2: Branded XNEXT map marker ─────────────────────────────────────
+   Orange disc + white ring + centered X logo + drop pointer. Readable on both
+   the dark XNEXT theme and standard light Google maps; the dark outer ring +
+   shadow keep it legible over bright terrain/water.                         */
+.xnext-marker {
+  position: relative;
+  width: 30px;
+  height: 38px;
+  cursor: pointer;
+  transition: transform 120ms ease;
+  will-change: transform;
+}
+
+/* Disc */
+.xnext-marker::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: #f97316;
+  border: 2.5px solid #fff;
+  box-sizing: border-box;
+  box-shadow:
+    0 0 0 1.5px rgba(0, 0, 0, 0.28),
+    0 3px 8px rgba(0, 0, 0, 0.45);
+}
+
+/* Drop pointer (diamond, white-edged to match the ring) */
+.xnext-marker::after {
+  content: '';
+  position: absolute;
+  top: 23px;
+  left: 50%;
+  width: 11px;
+  height: 11px;
+  background: #f97316;
+  border-right: 2.5px solid #fff;
+  border-bottom: 2.5px solid #fff;
+  box-sizing: border-box;
+  transform: translateX(-50%) rotate(45deg);
+  box-shadow: 2px 2px 4px rgba(0, 0, 0, 0.25);
+}
+
+/* Centered X logo */
+.xnext-marker__x {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 30px;
+  height: 30px;
+  z-index: 1;
+}
+.xnext-marker__x path {
+  stroke: #fff;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  fill: none;
+}
+
+.xnext-marker--selected {
+  transform: scale(1.18);
+  z-index: 3;
+}
+.xnext-marker--selected::before {
+  background: #f59e0b;
+}
+.xnext-marker--selected::after {
+  background: #f59e0b;
+}
+
+/* Live mode: breathing orange halo around the disc */
+.xnext-marker--live::before {
+  animation: xnext-marker-pulse 2s ease-in-out infinite;
+}
+@keyframes xnext-marker-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 1.5px rgba(0, 0, 0, 0.28),
+      0 0 0 4px rgba(249, 115, 22, 0.0),
+      0 3px 8px rgba(0, 0, 0, 0.45);
+  }
+  50% {
+    box-shadow:
+      0 0 0 1.5px rgba(0, 0, 0, 0.28),
+      0 0 0 8px rgba(249, 115, 22, 0.28),
+      0 3px 8px rgba(0, 0, 0, 0.45);
+  }
+}
+
+/* ── Part 1: Seasonal badges ──────────────────────────────────────────── */
+.badge--season {
+  background: rgba(249, 115, 22, 0.14);
+  color: #fdba74;
+  border: 1px solid rgba(249, 115, 22, 0.28);
+}
+.badge--season-spring {
+  background: rgba(74, 222, 128, 0.14);
+  color: #86efac;
+  border: 1px solid rgba(74, 222, 128, 0.28);
+}
+.badge--season-summer {
+  background: rgba(250, 204, 21, 0.14);
+  color: #fde047;
+  border: 1px solid rgba(250, 204, 21, 0.28);
+}
+.badge--season-fall {
+  background: rgba(234, 88, 12, 0.16);
+  color: #fdba74;
+  border: 1px solid rgba(234, 88, 12, 0.3);
+}
+.badge--season-winter {
+  background: rgba(56, 189, 248, 0.14);
+  color: #7dd3fc;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+}
+.badge--season-evergreen {
+  background: rgba(148, 163, 184, 0.14);
+  color: #cbd5e1;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+}
+.badge--season-status {
+  background: rgba(34, 197, 94, 0.18);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.32);
+}
+
+/* "Seasonal Now" / "Ending Soon" pill on the compact + detail sheets */
+.quest-listing-badge--season {
+  background: rgba(34, 197, 94, 0.18);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.32);
+}
+
+.quest-sheet__seasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 4px 0 10px;
+}
+
+/* ── Part 4: Parking note on the route sheet ──────────────────────────── */
+.quest-route__parking {
+  margin: 8px 0 4px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #fbbf24;
+}
+
+/* ── Part 3: Google POI bottom sheet ──────────────────────────────────── */
+.poi-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  margin-inline: auto;
+  max-width: 560px;
+  background: rgba(13, 14, 20, 0.97);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-bottom: none;
+  color: #f4f5f7;
+  border-radius: 20px 20px 0 0;
+  padding: 16px 18px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  backdrop-filter: blur(20px);
+  box-shadow: 0 -8px 32px rgb(0 0 0 / 0.6);
+  z-index: 60;
+}
+
+.poi-sheet__close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #f4f5f7;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.poi-sheet__head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-right: 32px;
+}
+
+.poi-sheet__pin {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.poi-sheet__info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.poi-sheet__name {
+  font-size: 16px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.poi-sheet__category {
+  font-size: 13px;
+  color: rgba(244, 245, 247, 0.7);
+}
+
+.poi-sheet__source {
+  margin-top: 2px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  color: rgba(148, 163, 184, 0.8);
+}
+
+.poi-sheet__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.poi-sheet__btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f4f5f7;
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.poi-sheet__btn--primary {
+  background: #f97316;
+  border-color: #f97316;
+  color: #fff;
+}

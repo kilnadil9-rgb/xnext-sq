@@ -1,11 +1,20 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { questService } from '../../services/questService'
 import { QuestForm, type QuestFormValues } from '../../components/quests/QuestForm'
+import type { LatLng } from '../../components/map/types'
+
+interface CreateQuestLocationState {
+  /** Seed coordinate from a Google POI ("Create Experience Here"). */
+  prefillLocation?: LatLng
+  prefillName?: string
+}
 
 /** /dashboard/quests/new — create a quest (lands as draft). */
 export function CreateQuestPage() {
   const navigate = useNavigate()
+  const routerLocation = useLocation()
+  const prefill = (routerLocation.state ?? {}) as CreateQuestLocationState
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -50,6 +59,8 @@ export function CreateQuestPage() {
         submitLabel="Create draft"
         submitting={submitting}
         onSubmit={handleSubmit}
+        initialLocation={prefill.prefillLocation ?? null}
+        initialLocationName={prefill.prefillName}
       />
     </div>
   )

@@ -7,6 +7,7 @@ import type { RankedQuest } from '../../lib/adventureRadar'
 import type { LatLng } from './types'
 import { googleMapsDirectionsUrl } from './DirectionsLayer'
 import { listingBadge } from '../../services/listingService'
+import { seasonBadges, seasonalStatusLabel } from '../../lib/season'
 
 type SaveState = 'checking' | 'not_saved' | 'saving' | 'saved'
 type CompletionState = 'checking' | 'not_done' | 'completing' | 'done'
@@ -144,6 +145,16 @@ export function QuestPreviewCard({
   const isDone = completionState === 'done'
   const saveBusy = saveState === 'checking' || saveState === 'saving' || saveState === 'saved'
   const badge = listingBadge(quest)
+  const seasonStatus = seasonalStatusLabel(quest)
+  const seasons = seasonBadges(quest)
+
+  // Part 4: navigate to parking when a separate drive-to point exists; the
+  // experience itself remains at quest.lat/lng (future: walk-to leg).
+  const hasParking =
+    Number.isFinite(quest.parking_lat) && Number.isFinite(quest.parking_lng)
+  const navTarget: LatLng = hasParking
+    ? { lat: quest.parking_lat as number, lng: quest.parking_lng as number }
+    : { lat: quest.lat, lng: quest.lng }
 
   /* ── Celebration overlay (adventure ending) ───────────────────────────── */
   if (celebrating) {
@@ -192,6 +203,11 @@ export function QuestPreviewCard({
             {badge && (
               <span className={`quest-listing-badge quest-listing-badge--${badge.kind}`}>
                 {badge.label}
+              </span>
+            )}
+            {seasonStatus && (
+              <span className="quest-listing-badge quest-listing-badge--season">
+                {seasonStatus}
               </span>
             )}
             <span className="quest-compact__title">{quest.title}</span>
@@ -260,15 +276,23 @@ export function QuestPreviewCard({
               </span>
             </div>
 
+            {hasParking && (
+              <p className="quest-route__parking">
+                🅿️ Navigating to parking — a short walk to the experience from
+                there.
+              </p>
+            )}
+
             <div className="quest-sheet__actions">
-              {/* XNEXT owns discovery; Google owns turn-by-turn navigation. */}
+              {/* XNEXT owns discovery; Google owns turn-by-turn navigation.
+                  Part 4: route to the parking coordinate when one exists. */}
               <a
                 className="quest-sheet__primary"
-                href={googleMapsDirectionsUrl({ lat: quest.lat, lng: quest.lng })}
+                href={googleMapsDirectionsUrl(navTarget)}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Open in Google Maps
+                {hasParking ? 'Drive to parking' : 'Open in Google Maps'}
               </a>
             </div>
 
@@ -371,6 +395,24 @@ export function QuestPreviewCard({
         <span className={`quest-listing-badge quest-listing-badge--${badge.kind}`}>
           {badge.label}
         </span>
+      )}
+      {(seasonStatus || seasons.length > 0) && (
+        <div className="quest-sheet__seasons">
+          {seasonStatus && (
+            <span className="quest-listing-badge quest-listing-badge--season">
+              {seasonStatus}
+            </span>
+          )}
+          {seasons.map((b) => (
+            <span
+              key={b.key}
+              className={`badge badge--season badge--season-${b.key}`}
+              title={b.label}
+            >
+              {b.emoji} {b.label}
+            </span>
+          ))}
+        </div>
       )}
       <h2>{quest.title}</h2>
       <p className="quest-sheet__meta">

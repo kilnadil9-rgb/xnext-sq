@@ -8,8 +8,8 @@
  * Access: is_admin = true on the authenticated user's profile.
  * Non-admins are redirected to /dashboard immediately.
  *
- * RLS requirement: migration 019 must be applied so admins can
- * SELECT pending_review quests and UPDATE any quest status.
+ * RLS requirement: migration 018 added the admin SELECT/UPDATE policies; the
+ * seasonal columns edited here come from migration 019.
  */
 
 import { useEffect, useState, useCallback } from 'react'
@@ -17,6 +17,13 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { supabase } from '../../lib/supabase/client'
 import type { QuestStatus } from '../../lib/supabase/types'
+import {
+  SEASON_TAGS,
+  SEASON_BADGES,
+  monthsForSeasons,
+  seasonsForMonths,
+  type SeasonTag,
+} from '../../lib/season'
 
 interface ReviewQuest {
   id: string
@@ -40,6 +47,13 @@ interface ReviewQuest {
   business_name: string | null
   starts_at: string | null
   expires_at: string | null
+  // Seasonal fields (migration 019) — admin can override creator selections.
+  season_tags: string[] | null
+  active_months: number[] | null
+  start_date: string | null
+  end_date: string | null
+  is_evergreen: boolean | null
+  priority_boost: number | null
 }
 
 type ActionState = 'idle' | 'approving' | 'rejecting' | 'done'
@@ -68,7 +82,7 @@ export function AdminReviewPage() {
 
     const { data, error } = await supabase
       .from('quests')
-      .select('id, title, description, experience_class, location_name, city, country_code, media_urls, created_by, created_at, status, listing_type, is_paid_listing, payment_status, price_paid, tier, is_featured, business_name, starts_at, expires_at')
+      .select('id, title, description, experience_class, location_name, city, country_code, media_urls, created_by, created_at, status, listing_type, is_paid_listing, payment_status, price_paid, tier, is_featured, business_name, starts_at, expires_at, season_tags, active_months, start_date, end_date, is_evergreen, priority_boost')
       .eq('status', 'pending_review')
       .order('created_at', { ascending: true })
 
@@ -137,6 +151,92 @@ export function AdminReviewPage() {
       .eq('id', id)
     if (error) setActionError((s) => ({ ...s, [id]: error.message }))
     else patchQuest(id, { expires_at: iso })
+  }
+
+  // ── Seasonal editing (Phase 1.8) — admin overrides creator selections ──────
+  const handleToggleSeason = async (quest: ReviewQuest, tag: SeasonTag) => {
+    const current = new Set<SeasonTag>(
+      seasonsForMonths(quest.active_months ?? []),
+    )
+    if (current.has(tag)) current.delete(tag)
+    else current.add(tag)
+    const tags = [...current]
+    const months = monthsForSeasons(tags)
+    const { error } = await supabase
+      .from('quests')
+      .update({
+        season_tags: tags,
+        active_months: months,
+        // Selecting any season means it's no longer purely evergreen.
+        is_evergreen: tags.length === 0 ? quest.is_evergreen ?? true : false,
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq('id', quest.id)
+    if (error) setActionError((s) => ({ ...s, [quest.id]: error.message }))
+    else
+      patchQuest(quest.id, {
+        season_tags: tags,
+        active_months: months,
+        is_evergreen: tags.length === 0 ? quest.is_evergreen ?? true : false,
+      })
+  }
+
+  const handleToggleEvergreen = async (quest: ReviewQuest, value: boolean) => {
+    const { error } = await supabase
+      .from('quests')
+      .update({
+        is_evergreen: value,
+        // Marking evergreen clears the seasonal window.
+        ...(value ? { season_tags: [], active_months: [], start_date: null, end_date: null } : {}),
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq('id', quest.id)
+    if (error) setActionError((s) => ({ ...s, [quest.id]: error.message }))
+    else
+      patchQuest(
+        quest.id,
+        value
+          ? { is_evergreen: true, season_tags: [], active_months: [], start_date: null, end_date: null }
+          : { is_evergreen: false },
+      )
+  }
+
+  const handleSetPriorityBoost = async (id: string, value: number) => {
+    const boost = Math.max(0, Math.min(10, Math.round(value)))
+    const { error } = await supabase
+      .from('quests')
+      .update({ priority_boost: boost, updated_at: new Date().toISOString() } as never)
+      .eq('id', id)
+    if (error) setActionError((s) => ({ ...s, [id]: error.message }))
+    else patchQuest(id, { priority_boost: boost })
+  }
+
+  const handleSetSeasonWindow = async (
+    quest: ReviewQuest,
+    which: 'start' | 'end',
+    localValue: string,
+  ) => {
+    const iso = localValue ? new Date(localValue).toISOString() : null
+    const patch =
+      which === 'start' ? { start_date: iso } : { end_date: iso }
+    const { error } = await supabase
+      .from('quests')
+      .update({
+        ...patch,
+        // A specific date window implies non-evergreen.
+        ...(iso ? { is_evergreen: false } : {}),
+        updated_at: new Date().toISOString(),
+      } as never)
+      .eq('id', quest.id)
+    if (error) setActionError((s) => ({ ...s, [quest.id]: error.message }))
+    else patchQuest(quest.id, { ...patch, ...(iso ? { is_evergreen: false } : {}) })
+  }
+
+  // ISO → value for <input type="date">
+  const toDateInput = (iso: string | null): string => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    return Number.isNaN(d.getTime()) ? '' : d.toISOString().slice(0, 10)
   }
 
   // ISO → value for <input type="datetime-local">
@@ -289,6 +389,74 @@ export function AdminReviewPage() {
                   </div>
                 </div>
               )}
+
+              {/* Seasonality controls — admin curates/overrides creator choices */}
+              <div className="mt-3 rounded-lg border border-border bg-muted/30 p-3 text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-foreground">Seasonality</span>
+                  <label className="flex items-center gap-1.5 text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      className="accent-[#f97316]"
+                      checked={Boolean(quest.is_evergreen)}
+                      onChange={(e) => handleToggleEvergreen(quest, e.target.checked)}
+                    />
+                    {SEASON_BADGES.evergreen.emoji} Year round
+                  </label>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {SEASON_TAGS.map((tag) => {
+                    const on = seasonsForMonths(quest.active_months ?? []).includes(tag)
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => handleToggleSeason(quest, tag)}
+                        className={`rounded-full border px-2 py-0.5 transition ${
+                          on
+                            ? 'border-[#f97316] bg-[#f97316]/15 text-foreground'
+                            : 'border-border text-muted-foreground hover:bg-accent'
+                        }`}
+                      >
+                        {SEASON_BADGES[tag].emoji} {SEASON_BADGES[tag].label}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-1 text-muted-foreground">
+                    From
+                    <input
+                      type="date"
+                      defaultValue={toDateInput(quest.start_date)}
+                      onChange={(e) => handleSetSeasonWindow(quest, 'start', e.target.value)}
+                      className="rounded border border-border bg-card px-1 py-0.5 text-foreground"
+                    />
+                  </label>
+                  <label className="flex items-center gap-1 text-muted-foreground">
+                    To
+                    <input
+                      type="date"
+                      defaultValue={toDateInput(quest.end_date)}
+                      onChange={(e) => handleSetSeasonWindow(quest, 'end', e.target.value)}
+                      className="rounded border border-border bg-card px-1 py-0.5 text-foreground"
+                    />
+                  </label>
+                  <label className="flex items-center gap-1 text-muted-foreground">
+                    Boost
+                    <input
+                      type="number"
+                      min={0}
+                      max={10}
+                      defaultValue={quest.priority_boost ?? 0}
+                      onChange={(e) => handleSetPriorityBoost(quest.id, Number(e.target.value))}
+                      className="w-14 rounded border border-border bg-card px-1 py-0.5 text-foreground"
+                    />
+                  </label>
+                </div>
+              </div>
 
               {actionError[quest.id] && (
                 <p className="mt-2 text-xs text-destructive" role="alert">{actionError[quest.id]}</p>

@@ -61,6 +61,20 @@ export interface CreateQuestInput {
   status?: QuestStatus
   /** Extra provenance/details merged into the metadata jsonb column. */
   metadata?: Record<string, unknown>
+  // ── Seasonal (Phase 1.8) ──
+  /** 'spring' | 'summer' | 'fall' | 'winter' UI labels. */
+  season_tags?: string[]
+  /** Canonical 1-12 months the experience is in season. */
+  active_months?: number[]
+  /** ISO date window for one-off / date-based experiences. */
+  start_date?: string | null
+  end_date?: string | null
+  /** Relevant year-round (default true when no seasonal data). */
+  is_evergreen?: boolean
+  /** Admin curation knob (defaults 0). */
+  priority_boost?: number
+  /** Optional separate parking/drive-to coordinate. */
+  parking?: QuestLocationInput | null
 }
 
 export interface UpdateQuestInput {
@@ -73,6 +87,15 @@ export interface UpdateQuestInput {
   country_code?: string | null
   tags?: string[]
   external_url?: string | null
+  // ── Seasonal (Phase 1.8) ──
+  season_tags?: string[]
+  active_months?: number[]
+  start_date?: string | null
+  end_date?: string | null
+  is_evergreen?: boolean
+  priority_boost?: number
+  /** Pass a coordinate to set, null to clear, omit to leave unchanged. */
+  parking?: QuestLocationInput | null
 }
 
 // ─── Service ─────────────────────────────────────────────────────────────────
@@ -325,6 +348,15 @@ export const questService = {
       status: (input.status ?? 'draft') as QuestStatus,
       expires_at: null,
       metadata: input.metadata ?? {},
+      // Seasonal (Phase 1.8): default to evergreen so unclassified experiences
+      // behave exactly as before. Admin can refine later in review.
+      season_tags: input.season_tags ?? [],
+      active_months: input.active_months ?? [],
+      start_date: input.start_date ?? null,
+      end_date: input.end_date ?? null,
+      is_evergreen: input.is_evergreen ?? true,
+      priority_boost: input.priority_boost ?? 0,
+      parking_point: input.parking ? toEwktPoint(input.parking) : null,
     }
 
     const { data, error } = await supabase
@@ -347,13 +379,17 @@ export const questService = {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { data: null, error: 'Not authenticated' }
 
-    const { location, ...rest } = updates
+    const { location, parking, ...rest } = updates
     const updatePayload: Record<string, unknown> = {
       ...rest,
       updated_at: new Date().toISOString(),
     }
     if (location) {
       updatePayload.location_point = toEwktPoint(location)
+    }
+    // parking: coordinate → set, null → clear, undefined → leave unchanged.
+    if (parking !== undefined) {
+      updatePayload.parking_point = parking ? toEwktPoint(parking) : null
     }
 
     const { data, error } = await supabase

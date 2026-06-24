@@ -7,6 +7,7 @@ import {
   useApiLoadingStatus,
   useMap,
   type MapCameraChangedEvent,
+  type MapMouseEvent,
 } from '@vis.gl/react-google-maps'
 import { useRef } from 'react'
 import { useUserLocation } from '../../hooks/useUserLocation'
@@ -25,6 +26,7 @@ import { MapErrorBoundary } from './MapErrorBoundary'
 import { QuestClusterer } from './QuestClusterer'
 import { QuestList } from './QuestList'
 import { QuestPreviewCard } from './QuestPreviewCard'
+import { GooglePoiSheet, type GooglePoiSelection } from './GooglePoiSheet'
 import { PlaceSearch } from './PlaceSearch'
 import { AdventureRadarCapsule } from '../ui/AdventureRadarCapsule'
 import { questCompletionService } from '../../services/questCompletionService'
@@ -98,7 +100,7 @@ export default function MapScreen({ cinematic = false }: MapScreenProps = {}) {
 
   return (
     <MapErrorBoundary>
-      <APIProvider apiKey={MAPS_API_KEY} libraries={['marker']}>
+      <APIProvider apiKey={MAPS_API_KEY} libraries={['marker', 'places']}>
         <RadarScreen cinematic={cinematic} />
       </APIProvider>
     </MapErrorBoundary>
@@ -124,6 +126,8 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   const [sortMode, setSortMode] = useState<RadarSortMode>('relevance')
   const [refreshKey, setRefreshKey] = useState(0)
   const [selectedQuest, setSelectedQuest] = useState<RankedQuest | null>(null)
+  // Phase 1.8 Part 3: a tapped Google POI (separate from XNEXT experiences).
+  const [selectedPoi, setSelectedPoi] = useState<GooglePoiSelection | null>(null)
   // Follow-me: keep the camera on the user until they manually drag the map.
   const [followMe, setFollowMe] = useState(true)
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -219,7 +223,25 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
     setCameraCenter(ev.detail.center)
   }, [])
 
+  // Tap on a Google POI → open the lightweight POI sheet. Taps on empty map
+  // are ignored (no placeId), so they never disrupt a selected experience.
+  const handleMapClick = useCallback((ev: MapMouseEvent) => {
+    const placeId = ev.detail.placeId
+    if (!placeId) return
+    // Suppress Google's default POI info window; XNEXT owns this interaction.
+    ev.stop?.()
+    const latLng = ev.detail.latLng
+    setSelectedQuest(null)
+    setSelectedPoi({
+      placeId,
+      location: latLng
+        ? { lat: latLng.lat, lng: latLng.lng }
+        : ev.map.getCenter()?.toJSON() ?? FALLBACK_CENTER,
+    })
+  }, [])
+
   const handleSelectQuest = useCallback((quest: RankedQuest) => {
+    setSelectedPoi(null)
     setSelectedQuest(quest)
   }, [])
 
@@ -320,9 +342,10 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
           zoom={14}
           gestureHandling="greedy"
           disableDefaultUI
-          clickableIcons={false}
+          clickableIcons
           reuseMaps
           onDragstart={() => setFollowMe(false)}
+          onClick={handleMapClick}
           onCameraChanged={handleCameraChanged}
           className="radar-screen__canvas"
           styles={XNEXT_MAP_STYLES}
@@ -488,6 +511,12 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
             userLocation={locationStatus === 'active' ? userPosition : null}
             onClose={() => setSelectedQuest(null)}
             onNext={handleNext}
+          />
+        )}
+        {selectedPoi && !selectedQuest && (
+          <GooglePoiSheet
+            poi={selectedPoi}
+            onClose={() => setSelectedPoi(null)}
           />
         )}
       </div>

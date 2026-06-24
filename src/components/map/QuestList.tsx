@@ -6,6 +6,7 @@ import {
   type RadarSortMode,
   type RankedQuest,
 } from '../../lib/adventureRadar'
+import { seasonBadges, seasonalStatusLabel } from '../../lib/season'
 
 interface Props {
   quests: RankedQuest[]
@@ -142,6 +143,23 @@ export function QuestList({
                   {quest.location_name ? ` · ${quest.location_name}` : ''}
                 </span>
                 <span className="radar-row__badges">
+                  {(() => {
+                    const status = seasonalStatusLabel(quest)
+                    return status ? (
+                      <span className="badge badge--season-status" title="Seasonal status">
+                        {status}
+                      </span>
+                    ) : null
+                  })()}
+                  {seasonBadges(quest).map((b) => (
+                    <span
+                      key={b.key}
+                      className={`badge badge--season badge--season-${b.key}`}
+                      title={b.label}
+                    >
+                      {b.emoji} {b.label}
+                    </span>
+                  ))}
                   {quest.sq_score !== null && (
                     <span className="badge badge--sq" title="SQ Score">
                       SQ {Math.round(quest.sq_score)}
