@@ -27,6 +27,7 @@ import { QuestClusterer } from './QuestClusterer'
 import { QuestList } from './QuestList'
 import { QuestPreviewCard } from './QuestPreviewCard'
 import { GooglePoiSheet, type GooglePoiSelection } from './GooglePoiSheet'
+import { RouteLayer, type RouteStatus, type RouteResult } from './DirectionsLayer'
 import { PlaceSearch } from './PlaceSearch'
 import { AdventureRadarCapsule } from '../ui/AdventureRadarCapsule'
 import { questCompletionService } from '../../services/questCompletionService'
@@ -100,7 +101,7 @@ export default function MapScreen({ cinematic = false }: MapScreenProps = {}) {
 
   return (
     <MapErrorBoundary>
-      <APIProvider apiKey={MAPS_API_KEY} libraries={['marker', 'places']}>
+      <APIProvider apiKey={MAPS_API_KEY} libraries={['marker', 'places', 'routes']}>
         <RadarScreen cinematic={cinematic} />
       </APIProvider>
     </MapErrorBoundary>
@@ -131,6 +132,12 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   // Follow-me: keep the camera on the user until they manually drag the map.
   const [followMe, setFollowMe] = useState(true)
   const [currentIndex, setCurrentIndex] = useState(0)
+
+  // Phase 2: in-app route preview (single destination). When routeDest is set
+  // and we have a GPS fix, RouteLayer draws the line + reports distance/ETA.
+  const [routeDest, setRouteDest] = useState<LatLng | null>(null)
+  const [routeStatus, setRouteStatus] = useState<RouteStatus>('idle')
+  const [routeResult, setRouteResult] = useState<RouteResult | null>(null)
 
   // Live Mode state (Phase 1 MVP)
   const [isLiveMode, setIsLiveMode] = useState(false)
@@ -240,10 +247,35 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
     })
   }, [])
 
-  const handleSelectQuest = useCallback((quest: RankedQuest) => {
-    setSelectedPoi(null)
-    setSelectedQuest(quest)
+  // Clear the in-app route preview (line + ETA) and return to discovery.
+  const clearRoute = useCallback(() => {
+    setRouteDest(null)
+    setRouteStatus('idle')
+    setRouteResult(null)
   }, [])
+
+  // Activate the route preview to a destination (parking or quest point).
+  const handleRequestRoute = useCallback(
+    (dest: LatLng) => {
+      // Stop the camera following the user so the route can fit its bounds.
+      setFollowMe(false)
+      setRouteResult(null)
+      setRouteDest(dest)
+      // If we have no fix yet, RouteLayer can't mount — the card prompts the
+      // user to enable location; status flips to loading once it does.
+      setRouteStatus(userPosition ? 'loading' : 'idle')
+    },
+    [userPosition],
+  )
+
+  const handleSelectQuest = useCallback(
+    (quest: RankedQuest) => {
+      setSelectedPoi(null)
+      setSelectedQuest(quest)
+      clearRoute() // selecting a new experience clears any active route
+    },
+    [clearRoute],
+  )
 
   // Marker clicks deliver a NearbyQuest; resolve it to its ranked twin.
   const handleSelectFromMap = useCallback(
@@ -381,6 +413,18 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
             onSelect={handleSelectFromMap}
             isLive={isLiveMode}
           />
+
+          {/* In-app route preview line (Phase 2). Mounts only while a preview
+              is active AND we have a GPS fix; unmounting clears the line. */}
+          {routeDest && userPosition && (
+            <RouteLayer
+              key={`${routeDest.lat},${routeDest.lng}`}
+              origin={userPosition}
+              destination={routeDest}
+              onStatus={setRouteStatus}
+              onResult={setRouteResult}
+            />
+          )}
         </Map>
 
         {/* Search-first UX removed: XNEXT surfaces adventures, users don't hunt.
@@ -509,14 +553,31 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
           <QuestPreviewCard
             quest={selectedQuest}
             userLocation={locationStatus === 'active' ? userPosition : null}
-            onClose={() => setSelectedQuest(null)}
+            onClose={() => {
+              clearRoute()
+              setSelectedQuest(null)
+            }}
             onNext={handleNext}
+            onRequestRoute={handleRequestRoute}
+            onClearRoute={clearRoute}
+            onRequestLocation={requestLocation}
+            routeStatus={routeStatus}
+            routeResult={routeResult}
           />
         )}
         {selectedPoi && !selectedQuest && (
           <GooglePoiSheet
             poi={selectedPoi}
-            onClose={() => setSelectedPoi(null)}
+            onClose={() => {
+              clearRoute()
+              setSelectedPoi(null)
+            }}
+            userLocation={locationStatus === 'active' ? userPosition : null}
+            onRequestRoute={handleRequestRoute}
+            onRequestLocation={requestLocation}
+            routeActive={routeDest !== null}
+            routeStatus={routeStatus}
+            routeResult={routeResult}
           />
         )}
       </div>

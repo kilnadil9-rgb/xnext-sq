@@ -5,7 +5,11 @@ import { questCompletionService } from '../../services/questCompletionService'
 import { formatDistance, haversineMeters } from '../../lib/distance'
 import type { RankedQuest } from '../../lib/adventureRadar'
 import type { LatLng } from './types'
-import { googleMapsDirectionsUrl } from './DirectionsLayer'
+import {
+  googleMapsDirectionsUrl,
+  type RouteStatus,
+  type RouteResult,
+} from './DirectionsLayer'
 import { listingBadge } from '../../services/listingService'
 import { seasonBadges, seasonalStatusLabel } from '../../lib/season'
 
@@ -20,6 +24,16 @@ interface Props {
   userLocation: LatLng | null
   onClose: () => void
   onNext?: () => void
+  /** Phase 2: activate the in-app route preview to a destination. */
+  onRequestRoute?: (dest: LatLng) => void
+  /** Phase 2: clear the in-app route preview. */
+  onClearRoute?: () => void
+  /** Prompt the user to enable location (used when no GPS fix). */
+  onRequestLocation?: () => void
+  /** Live status of the in-app route preview (from MapScreen/RouteLayer). */
+  routeStatus?: RouteStatus
+  /** Distance + ETA once the route resolves. */
+  routeResult?: RouteResult | null
 }
 
 const CLASS_ICON: Record<string, string> = {
@@ -45,6 +59,11 @@ export function QuestPreviewCard({
   userLocation,
   onClose,
   onNext,
+  onRequestRoute,
+  onClearRoute,
+  onRequestLocation,
+  routeStatus = 'idle',
+  routeResult = null,
 }: Props) {
   const [view, setView] = useState<View>('compact')
   const [saveState, setSaveState] = useState<SaveState>('checking')
@@ -102,11 +121,14 @@ export function QuestPreviewCard({
 
   const handleStart = () => {
     setView('route')
+    // Primary action is now the in-app preview, not Google Maps.
+    onRequestRoute?.(navTarget)
   }
 
   const backToCompact = () => {
     setShowCompleteForm(false)
     setView('compact')
+    onClearRoute?.()
   }
 
   const handleConfirmComplete = async () => {
@@ -286,29 +308,70 @@ export function QuestPreviewCard({
               )}
             </div>
 
+            {/* In-app route preview status (line is drawn on the Home map). */}
             <div className="quest-route__stats">
-              <span className={`quest-route__eta${distanceMeters !== null ? '' : ' quest-route__eta--muted'}`}>
-                {distLabel}
-              </span>
+              {userLocation === null ? (
+                <span className="quest-route__eta quest-route__eta--muted">
+                  📍 Enable location to preview your route
+                </span>
+              ) : routeStatus === 'loading' ? (
+                <span className="quest-route__eta quest-route__eta--muted">
+                  Calculating route…
+                </span>
+              ) : routeStatus === 'ok' && routeResult ? (
+                <span className="quest-route__eta">
+                  🚗 {routeResult.durationText} · {routeResult.distanceText}
+                </span>
+              ) : routeStatus === 'denied' ? (
+                <span className="quest-route__eta quest-route__eta--muted">
+                  Route preview needs Google Directions enabled.
+                  {distanceMeters !== null ? ` ${distLabel}.` : ''}
+                </span>
+              ) : routeStatus === 'error' ? (
+                <span className="quest-route__eta quest-route__eta--muted">
+                  Couldn’t build a route.
+                  {distanceMeters !== null ? ` ${distLabel}.` : ''}
+                </span>
+              ) : (
+                <span className={`quest-route__eta${distanceMeters !== null ? '' : ' quest-route__eta--muted'}`}>
+                  {distLabel}
+                </span>
+              )}
             </div>
 
             {hasParking && (
               <p className="quest-route__parking">
-                🅿️ Navigating to parking — a short walk to the experience from
+                🅿️ Routing to parking — a short walk to the experience from
                 there.
               </p>
             )}
 
+            {userLocation === null && (
+              <div className="quest-sheet__actions">
+                <button
+                  type="button"
+                  className="quest-sheet__primary"
+                  onClick={() => onRequestLocation?.()}
+                >
+                  Enable location
+                </button>
+              </div>
+            )}
+
+            {/* Secondary fallback — full turn-by-turn lives in Google Maps. */}
             <div className="quest-sheet__actions">
-              {/* XNEXT owns discovery; Google owns turn-by-turn navigation.
-                  Part 4: route to the parking coordinate when one exists. */}
               <a
-                className="quest-sheet__primary"
+                className="quest-route__secondary"
                 href={googleMapsDirectionsUrl(navTarget)}
                 target="_blank"
                 rel="noopener noreferrer"
+                style={{
+                  fontSize: '0.8rem',
+                  opacity: 0.75,
+                  textDecoration: 'underline',
+                }}
               >
-                {hasParking ? 'Drive to parking' : 'Open in Google Maps'}
+                Open full navigation in Google Maps ↗
               </a>
             </div>
 

@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { LatLng } from './types'
-import { googleMapsDirectionsUrl } from './DirectionsLayer'
+import {
+  googleMapsDirectionsUrl,
+  type RouteStatus,
+  type RouteResult,
+} from './DirectionsLayer'
 
 export interface GooglePoiSelection {
   placeId: string
@@ -14,6 +18,16 @@ export interface GooglePoiSelection {
 interface Props {
   poi: GooglePoiSelection
   onClose: () => void
+  /** Real GPS fix, or null. */
+  userLocation?: LatLng | null
+  /** Phase 2: activate the in-app route preview to a destination. */
+  onRequestRoute?: (dest: LatLng) => void
+  /** Prompt the user to enable location (used when no GPS fix). */
+  onRequestLocation?: () => void
+  /** Whether a route preview is currently active (shared with the card). */
+  routeActive?: boolean
+  routeStatus?: RouteStatus
+  routeResult?: RouteResult | null
 }
 
 interface ResolvedPoi {
@@ -30,7 +44,16 @@ interface ResolvedPoi {
  * display details via the Places API (New); if that API isn't enabled it falls
  * back gracefully to the name/coordinate from the click event.
  */
-export function GooglePoiSheet({ poi, onClose }: Props) {
+export function GooglePoiSheet({
+  poi,
+  onClose,
+  userLocation = null,
+  onRequestRoute,
+  onRequestLocation,
+  routeActive = false,
+  routeStatus = 'idle',
+  routeResult = null,
+}: Props) {
   const navigate = useNavigate()
   const [resolved, setResolved] = useState<ResolvedPoi>({
     name: poi.name ?? 'Loading…',
@@ -110,22 +133,57 @@ export function GooglePoiSheet({ poi, onClose }: Props) {
       </div>
 
       <div className="poi-sheet__actions">
-        <a
-          className="poi-sheet__btn"
-          href={googleMapsDirectionsUrl(resolved.location)}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Directions
-        </a>
         <button
           type="button"
           className="poi-sheet__btn poi-sheet__btn--primary"
+          onClick={() =>
+            userLocation
+              ? onRequestRoute?.(resolved.location)
+              : onRequestLocation?.()
+          }
+        >
+          {userLocation ? 'Preview route' : 'Enable location'}
+        </button>
+        <button
+          type="button"
+          className="poi-sheet__btn"
           onClick={handleCreateHere}
         >
           Create Experience Here
         </button>
       </div>
+
+      {/* In-app route preview status (line drawn on the Home map). */}
+      {routeActive && (
+        <p className="poi-sheet__route" style={{ fontSize: '0.8rem', marginTop: 8 }}>
+          {routeStatus === 'loading'
+            ? 'Calculating route…'
+            : routeStatus === 'ok' && routeResult
+              ? `🚗 ${routeResult.durationText} · ${routeResult.distanceText}`
+              : routeStatus === 'denied'
+                ? 'Route preview needs Google Directions enabled.'
+                : routeStatus === 'error'
+                  ? 'Couldn’t build a route.'
+                  : ''}
+        </p>
+      )}
+
+      {/* Secondary fallback — full turn-by-turn lives in Google Maps. */}
+      <a
+        className="poi-sheet__secondary"
+        href={googleMapsDirectionsUrl(resolved.location)}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{
+          display: 'inline-block',
+          marginTop: 8,
+          fontSize: '0.8rem',
+          opacity: 0.75,
+          textDecoration: 'underline',
+        }}
+      >
+        Open full navigation in Google Maps ↗
+      </a>
     </div>
   )
 }
