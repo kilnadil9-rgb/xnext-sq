@@ -134,6 +134,12 @@ export function QuestPreviewCard({
   }
 
   const icon = CLASS_ICON[quest.experience_class] ?? '📍'
+  // Listing/quest image (migration 020 surfaces media_urls through the RPC).
+  // Optional everywhere: pre-migration rows simply fall back to the icon.
+  const thumb =
+    Array.isArray(quest.media_urls) && quest.media_urls.length > 0
+      ? quest.media_urls[0]
+      : null
   // Single source of truth: distance is computed from the real user location.
   // When there's no GPS fix we show no number (never a misleading "0 m").
   const distanceMeters =
@@ -198,7 +204,17 @@ export function QuestPreviewCard({
           onClick={() => setView('detail')}
           aria-label={`Open details for ${quest.title}`}
         >
-          <span className="quest-compact__icon" aria-hidden="true">{icon}</span>
+          {thumb ? (
+            <img
+              className="quest-compact__icon"
+              src={thumb}
+              alt=""
+              loading="lazy"
+              style={{ objectFit: 'cover', borderRadius: 8 }}
+            />
+          ) : (
+            <span className="quest-compact__icon" aria-hidden="true">{icon}</span>
+          )}
           <span className="quest-compact__info">
             {badge && (
               <span className={`quest-listing-badge quest-listing-badge--${badge.kind}`}>
@@ -390,6 +406,22 @@ export function QuestPreviewCard({
       <button type="button" className="quest-sheet__close" aria-label="Close" onClick={backToCompact}>
         ✕
       </button>
+
+      {thumb && (
+        <img
+          className="quest-sheet__hero"
+          src={thumb}
+          alt={quest.title}
+          loading="lazy"
+          style={{
+            width: '100%',
+            height: 160,
+            objectFit: 'cover',
+            borderRadius: 12,
+            marginBottom: 12,
+          }}
+        />
+      )}
 
       {badge && (
         <span className={`quest-listing-badge quest-listing-badge--${badge.kind}`}>

@@ -270,6 +270,8 @@ export interface NearbyQuest {
   parking_lat?: number | null
   /** From ST_X(parking_point); null when no separate parking coordinate. */
   parking_lng?: number | null
+  /** Image gallery (migration 020 RPC). First entry is used as the card image. */
+  media_urls?: string[] | null
 }
 
 // ─── SQ Domain tables (derived directly from migrations 008-013) ──────────────

@@ -278,7 +278,21 @@ export function DashboardLayout() {
             <NavItem to="/dashboard/trust" label="Trust & Privacy" icon={DreamListIcon} />
           </ul>
 
-          {/* P3: Admin section — hidden from non-admin users at the UI level */}
+          {/* Admin listings — gated on profiles.is_admin (matches AdminReviewPage
+              + AdminListingsPage access checks). Phase 1: seed the map by hand. */}
+          {profile?.is_admin && (
+            <div className="mt-6">
+              <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Admin
+              </p>
+              <ul className="space-y-1">
+                <NavItem to="/dashboard/admin/listings" label="Create Listing" icon={QuestIcon} />
+                <NavItem to="/dashboard/admin/review" label="Review Queue" icon={DreamListIcon} />
+              </ul>
+            </div>
+          )}
+
+          {/* P3: RBAC admin section — hidden from non-admin users at the UI level */}
           <RequireRole role={['admin', 'super_admin']} fallback={null}>
             <div className="mt-6">
               <p className="mb-2 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
