@@ -668,6 +668,42 @@
   cursor: default;
 }
 
+/* Three-up action rows (Dream List / LET'S GO / Share, Complete / Not Today /
+   Share) — tighter type + padding so a third button never forces the sheet
+   taller than the existing two-button rows. */
+.quest-sheet__actions--compact button {
+  font-size: 12.5px;
+  font-weight: 700;
+  padding: 0 4px;
+  line-height: 1.15;
+  white-space: normal;
+  text-align: center;
+}
+
+/* ── Share confirmation toast (XNEXT Share Phase) ─────────────────────── */
+@keyframes quest-share-toast-in {
+  from { opacity: 0; transform: translate(-50%, 6px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.quest-share-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  z-index: 70; /* above the quest-sheet (60) so it's always visible */
+  background: rgba(249, 115, 22, 0.95);
+  color: #14100a;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 999px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+  animation: quest-share-toast-in 0.18s ease-out both;
+  pointer-events: none;
+}
+
 /* ── In-app route sheet ──────────────────────────────────────────────── */
 
 .quest-route {

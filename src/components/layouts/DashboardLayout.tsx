@@ -11,6 +11,7 @@ import type { ExperienceClass, QuestStatus } from '../../lib/supabase/types'
 import { useUserLocation } from '../../hooks/useUserLocation'
 import { LocationPickerMap } from '../map/LocationPickerMap'
 import type { LatLng } from '../map/types'
+import { shareQuest } from '../../utils/shareQuest'
 
 /**
  * Phase 1 testing: discoveries are visible immediately so uploaders trust the
@@ -34,6 +35,22 @@ export function DashboardLayout() {
   const isMapHome = pathname === '/dashboard' || pathname === '/dashboard/' || pathname === '/dashboard/map'
 
   const [openSheet, setOpenSheet] = useState<'discover' | 'timeline' | 'pulse' | 'people' | null>(null)
+
+  // People panel "Share XNEXT" — invites friends to the app itself (not tied
+  // to a single quest), reusing the same native-share-with-clipboard-fallback
+  // helper as the quest share buttons.
+  const [appShareToast, setAppShareToast] = useState<string | null>(null)
+  const handleShareApp = async () => {
+    const result = await shareQuest({ title: 'XNEXT — Discover local adventures' })
+    if (result === 'shared') {
+      setAppShareToast('Share ready')
+    } else if (result === 'copied') {
+      setAppShareToast('Copied to clipboard')
+    } else {
+      return
+    }
+    setTimeout(() => setAppShareToast(null), 2200)
+  }
 
   // Discover sheet form state (wired for real submission + photo upload)
   const [discoverTitle, setDiscoverTitle] = useState('')
@@ -574,53 +591,86 @@ export function DashboardLayout() {
                 </div>
               )}
 
-              {/* Pulse — preview of the Opportunity Engine (clearly labelled examples) */}
+              {/* Pulse — Opportunity Engine. Beta preview: static cards, no live
+                  data or fake activity, but written as an intentional feature
+                  in progress rather than an empty placeholder. */}
               {openSheet === 'pulse' && (
                 <div>
                   <div className="mb-3 flex items-center justify-between">
                     <h3 className="font-semibold text-white">Pulse — Opportunity Engine</h3>
                     <span className="rounded-full border border-[#fde047]/30 bg-[#fde047]/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-[#fde047]">
-                      Preview
+                      Beta Preview
                     </span>
                   </div>
-                  <p className="mb-3 text-xs text-white/45">
-                    Examples of the time-sensitive nudges Pulse will surface once it's live.
+                  <p className="mb-3 text-xs text-white/50">
+                    Pulse watches for timing, weather, distance, and local opportunities so you don't miss the right moment.
                   </p>
                   <div className="space-y-2 text-sm">
                     <div className="p-3 border border-white/10 bg-white/5 rounded text-white/70">
-                      🌧️ Perfect weather window for a saved hike (example)
+                      🌤 Perfect weather window for a saved hike
                     </div>
                     <div className="p-3 border border-white/10 bg-white/5 rounded text-white/70">
-                      🎟️ Limited spots on a nearby sunset tour tonight (example)
+                      🎟 Limited-time local event nearby
                     </div>
                     <div className="p-3 border border-white/10 bg-white/5 rounded text-white/70">
-                      📍 A Dream List item just came within range (example)
+                      📍 A Dream List item is now within range
                     </div>
                   </div>
+                  <Link
+                    to="/dashboard/dream-list"
+                    onClick={closeSheet}
+                    className="mt-3 flex items-center justify-between rounded-lg border border-[#f97316]/40 bg-[#f97316]/10 px-3 py-2 text-xs text-[#fdba74]"
+                  >
+                    <span>Save experiences to your Dream List so Pulse can alert you later.</span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
                 </div>
               )}
 
-              {/* People — preview of the community feed (clearly labelled examples) */}
+              {/* People — Experience Community. Beta preview: static cards
+                  only, no fake live activity — signals where the social layer
+                  around real-world experiences is headed. */}
               {openSheet === 'people' && (
                 <div>
                   <div className="mb-3 flex items-center justify-between">
                     <h3 className="font-semibold text-white">People — Experience Community</h3>
                     <span className="rounded-full border border-[#fde047]/30 bg-[#fde047]/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-[#fde047]">
-                      Preview
+                      Beta Preview
                     </span>
                   </div>
-                  <p className="mb-3 text-xs text-white/45">
-                    Example activity — the community feed turns on as more explorers join.
+                  <p className="mb-3 text-xs text-white/50">
+                    See what nearby explorers are discovering, saving, and completing.
                   </p>
                   <div className="space-y-3">
                     <div className="flex items-center gap-3 p-2 border border-white/10 bg-white/5 rounded">
-                      <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0" />
-                      <div className="text-sm text-white/70">Someone shared a new viewpoint nearby (example)</div>
+                      <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center text-sm">📍</div>
+                      <div className="text-sm text-white/70">Someone discovered a hidden viewpoint nearby</div>
                     </div>
                     <div className="flex items-center gap-3 p-2 border border-white/10 bg-white/5 rounded">
-                      <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0" />
-                      <div className="text-sm text-white/70">A family adventure was logged this weekend (example)</div>
+                      <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center text-sm">🎒</div>
+                      <div className="text-sm text-white/70">A weekend adventure was added to a Dream List</div>
                     </div>
+                    <div className="flex items-center gap-3 p-2 border border-white/10 bg-white/5 rounded">
+                      <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center text-sm">🎆</div>
+                      <div className="text-sm text-white/70">A local event is getting attention tonight</div>
+                    </div>
+                  </div>
+                  <div className="mt-3 rounded-lg border border-[#f97316]/40 bg-[#f97316]/10 px-3 py-2">
+                    <p className="mb-2 text-xs text-[#fdba74]">
+                      Share an experience to help grow the community.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={handleShareApp}
+                      className="w-full rounded-md bg-primary py-2 text-xs font-semibold text-primary-foreground"
+                    >
+                      📤 Share XNEXT
+                    </button>
+                    {appShareToast && (
+                      <p className="mt-2 text-center text-[11px] text-[#fdba74]" role="status">
+                        {appShareToast}
+                      </p>
+                    )}
                   </div>
                 </div>
               )}

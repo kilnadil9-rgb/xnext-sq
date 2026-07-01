@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { dreamListService } from '../../services/dreamListService'
 import { questCompletionService } from '../../services/questCompletionService'
@@ -12,6 +12,7 @@ import {
 } from './DirectionsLayer'
 import { listingBadge } from '../../services/listingService'
 import { seasonBadges, seasonalStatusLabel } from '../../lib/season'
+import { shareQuest } from '../../utils/shareQuest'
 
 type SaveState = 'checking' | 'not_saved' | 'saving' | 'saved'
 type CompletionState = 'checking' | 'not_done' | 'completing' | 'done'
@@ -80,6 +81,11 @@ export function QuestPreviewCard({
   const [celebrating, setCelebrating] = useState(false)
   const [xpEarned, setXpEarned] = useState(0)
 
+  // Share (XNEXT Share Phase): lightweight confirmation toast, no error UI —
+  // cancelled/failed shares just fall through silently (never blocks the user).
+  const [shareToast, setShareToast] = useState<string | null>(null)
+  const shareToastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
   // When the selected adventure changes (e.g. NEXT), collapse back to compact.
   useEffect(() => {
     let cancelled = false
@@ -103,6 +109,27 @@ export function QuestPreviewCard({
       cancelled = true
     }
   }, [quest.id])
+
+  // Clear any pending toast timer on unmount so it never fires against a
+  // stale/removed component.
+  useEffect(() => {
+    return () => {
+      if (shareToastTimer.current) clearTimeout(shareToastTimer.current)
+    }
+  }, [])
+
+  const showShareToast = (message: string) => {
+    setShareToast(message)
+    if (shareToastTimer.current) clearTimeout(shareToastTimer.current)
+    shareToastTimer.current = setTimeout(() => setShareToast(null), 2200)
+  }
+
+  const handleShare = async () => {
+    const result = await shareQuest(quest)
+    if (result === 'shared') showShareToast('Share ready')
+    else if (result === 'copied') showShareToast('Copied to clipboard')
+    // 'cancelled' and 'failed' are silent — sharing should never block the user.
+  }
 
   const handleSave = async () => {
     setSaveState('saving')
@@ -212,6 +239,14 @@ export function QuestPreviewCard({
             Next adventure →
           </button>
         </div>
+        <div className="quest-sheet__actions">
+          <button type="button" onClick={handleShare}>
+            📤 Share this experience
+          </button>
+        </div>
+        {shareToast && (
+          <div className="quest-share-toast" role="status">{shareToast}</div>
+        )}
       </div>
     )
   }
@@ -379,7 +414,7 @@ export function QuestPreviewCard({
               <p className="quest-sheet__error" role="alert">{saveError}</p>
             )}
 
-            <div className="quest-sheet__actions">
+            <div className="quest-sheet__actions quest-sheet__actions--compact">
               <button
                 type="button"
                 className="quest-sheet__primary"
@@ -390,7 +425,13 @@ export function QuestPreviewCard({
               <button type="button" onClick={backToCompact}>
                 Not Today
               </button>
+              <button type="button" onClick={handleShare} aria-label="Share this experience">
+                📤 Share
+              </button>
             </div>
+            {shareToast && (
+              <div className="quest-share-toast" role="status">{shareToast}</div>
+            )}
           </div>
         ) : (
           /* Completion form */
@@ -532,14 +573,20 @@ export function QuestPreviewCard({
         <p className="quest-sheet__error" role="alert">{saveError}</p>
       )}
 
-      <div className="quest-sheet__actions">
+      <div className="quest-sheet__actions quest-sheet__actions--compact">
         <button type="button" disabled={saveBusy} onClick={handleSave}>
-          {saveState === 'saved' ? '✓ Saved' : saveState === 'saving' ? 'Saving…' : 'Save for Later'}
+          {saveState === 'saved' ? '✓ Saved' : saveState === 'saving' ? 'Saving…' : '♡ Dream List'}
         </button>
         <button type="button" className="quest-sheet__primary" onClick={handleStart}>
           LET’S GO
         </button>
+        <button type="button" onClick={handleShare} aria-label="Share this experience">
+          📤 Share
+        </button>
       </div>
+      {shareToast && (
+        <div className="quest-share-toast" role="status">{shareToast}</div>
+      )}
 
       {onNext && (
         <div className="quest-sheet__actions">
