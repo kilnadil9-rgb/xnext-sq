@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   APIProvider,
   AdvancedMarker,
@@ -52,6 +53,75 @@ function nearestRadiusOption(km: number): number {
   )
 }
 const DEFAULT_RADIUS_KM = Number(import.meta.env.VITE_DEFAULT_RADIUS_KM ?? 5)
+
+// ── Timeline filter (Phase 3) ─────────────────────────────────────────────────
+// Filters the visible experiences by *when* the user wants to go. Time-sensitive
+// experiences (events/listings with a date) are matched against the window;
+// evergreen/undated experiences are "available anytime" and always pass, so the
+// map never goes empty. Pure, no I/O.
+export type Timeframe = 'all' | 'today' | 'tonight' | 'weekend' | 'week' | 'month'
+
+const TIMEFRAME_LABEL: Record<Timeframe, string> = {
+  all: 'All',
+  today: 'Today',
+  tonight: 'Tonight',
+  weekend: 'This Weekend',
+  week: 'This Week',
+  month: 'This Month',
+}
+
+function matchesTimeframe(
+  q: { starts_at?: string | null; start_date?: string | null },
+  tf: Timeframe,
+): boolean {
+  if (tf === 'all') return true
+  const raw = q.starts_at ?? q.start_date
+  if (!raw) return true // evergreen / undated → available anytime
+  const t = Date.parse(raw)
+  if (Number.isNaN(t)) return true // never hide on bad data
+
+  const now = new Date()
+  const startOfToday = new Date(now)
+  startOfToday.setHours(0, 0, 0, 0)
+  const endOfToday = new Date(now)
+  endOfToday.setHours(23, 59, 59, 999)
+
+  if (t < startOfToday.getTime()) return false // event already passed
+
+  switch (tf) {
+    case 'today':
+      return t <= endOfToday.getTime()
+    case 'tonight': {
+      const eve = new Date(now)
+      eve.setHours(17, 0, 0, 0)
+      return t >= eve.getTime() && t <= endOfToday.getTime()
+    }
+    case 'weekend': {
+      const day = now.getDay() // 0 Sun … 6 Sat
+      const sat = new Date(startOfToday)
+      sat.setDate(startOfToday.getDate() + ((6 - day + 7) % 7))
+      const sun = new Date(sat)
+      sun.setDate(sat.getDate() + 1)
+      sun.setHours(23, 59, 59, 999)
+      const start = day === 0 ? startOfToday.getTime() : sat.getTime()
+      return t >= start && t <= sun.getTime()
+    }
+    case 'week': {
+      const end = new Date(startOfToday)
+      end.setDate(startOfToday.getDate() + 7)
+      end.setHours(23, 59, 59, 999)
+      return t <= end.getTime()
+    }
+    case 'month': {
+      const end = new Date(startOfToday)
+      end.setDate(startOfToday.getDate() + 31)
+      end.setHours(23, 59, 59, 999)
+      return t <= end.getTime()
+    }
+    default:
+      return true
+  }
+}
 
 function LiveRadiusRing({ center, radiusMiles }: { center: LatLng; radiusMiles: number }) {
   const map = useMap()
@@ -110,6 +180,7 @@ export default function MapScreen({ cinematic = false }: MapScreenProps = {}) {
 
 function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   const apiStatus = useApiLoadingStatus()
+  const navigate = useNavigate()
 
   const {
     position: userPosition,
@@ -125,6 +196,8 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   const [radiusKm, setRadiusKm] = useState(cinematic ? 50 : DEFAULT_RADIUS_KM)
   const [radiusTouched, setRadiusTouched] = useState(false)
   const [sortMode, setSortMode] = useState<RadarSortMode>('relevance')
+  // Phase 3: Timeline filter — which time window of experiences to show.
+  const [timeframe, setTimeframe] = useState<Timeframe>('all')
   const [refreshKey, setRefreshKey] = useState(0)
   const [selectedQuest, setSelectedQuest] = useState<RankedQuest | null>(null)
   // Phase 1.8 Part 3: a tapped Google POI (separate from XNEXT experiences).
@@ -226,6 +299,43 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
     [quests, radiusKm, sortMode, pulseQuestIds, preferences],
   )
 
+  // Phase 3: apply the Timeline filter to what the map + list actually show.
+  const displayedQuests = useMemo(
+    () =>
+      timeframe === 'all'
+        ? rankedQuests
+        : rankedQuests.filter((q) => matchesTimeframe(q, timeframe)),
+    [rankedQuests, timeframe],
+  )
+
+  // Phase 3: broadcast the current nearby set so the Pulse/People sheets in
+  // DashboardLayout can build real cards from data already loaded here (no
+  // extra fetch, no backend). Small payload only.
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('xnext-nearby-updated', {
+        detail: {
+          quests: displayedQuests.map((q) => ({
+            id: q.id,
+            title: q.title,
+            experience_class: q.experience_class,
+            distance_km: q.distance_km,
+          })),
+        },
+      }),
+    )
+  }, [displayedQuests])
+
+  // Phase 3: Timeline sheet (bottom nav) dispatches the chosen window here.
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const range = (e as CustomEvent).detail?.range as Timeframe | undefined
+      if (range) setTimeframe(range)
+    }
+    window.addEventListener('xnext-timeline-filter', handler)
+    return () => window.removeEventListener('xnext-timeline-filter', handler)
+  }, [])
+
   const handleCameraChanged = useCallback((ev: MapCameraChangedEvent) => {
     setCameraCenter(ev.detail.center)
   }, [])
@@ -280,31 +390,31 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   // Marker clicks deliver a NearbyQuest; resolve it to its ranked twin.
   const handleSelectFromMap = useCallback(
     (quest: { id: string }) => {
-      const ranked = rankedQuests.find((q) => q.id === quest.id)
+      const ranked = displayedQuests.find((q) => q.id === quest.id)
       if (ranked) handleSelectQuest(ranked)
     },
-    [rankedQuests, handleSelectQuest],
+    [displayedQuests, handleSelectQuest],
   )
 
   const handleNext = useCallback(() => {
-    if (rankedQuests.length === 0) return
-    const nextIndex = (currentIndex + 1) % rankedQuests.length
+    if (displayedQuests.length === 0) return
+    const nextIndex = (currentIndex + 1) % displayedQuests.length
     setCurrentIndex(nextIndex)
-    const nextQ = rankedQuests[nextIndex]
+    const nextQ = displayedQuests[nextIndex]
     handleSelectQuest(nextQ)
     setCameraCenter({ lat: nextQ.lat, lng: nextQ.lng })
     if (import.meta.env.DEV) {
       console.log('[NEXT] cycled to:', nextQ.title)
     }
-  }, [currentIndex, rankedQuests, handleSelectQuest])
+  }, [currentIndex, displayedQuests, handleSelectQuest])
 
   // Auto-select first on load for immediate NEXT loop experience with real data
   useEffect(() => {
-    if (rankedQuests.length > 0 && !selectedQuest) {
+    if (displayedQuests.length > 0 && !selectedQuest) {
       setCurrentIndex(0)
-      handleSelectQuest(rankedQuests[0])
+      handleSelectQuest(displayedQuests[0])
     }
-  }, [rankedQuests, selectedQuest, handleSelectQuest])
+  }, [displayedQuests, selectedQuest, handleSelectQuest])
 
   // Listen for unified NEXT from bottom nav (or other sources)
   useEffect(() => {
@@ -312,6 +422,22 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
     window.addEventListener('xnext-next', handler)
     return () => window.removeEventListener('xnext-next', handler)
   }, [handleNext])
+
+  // Phase 3: let the Pulse sheet open a specific experience by id (closes the
+  // loop — a "saved experience is nearby" card becomes tappable).
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent).detail?.id as string | undefined
+      if (!id) return
+      const ranked = displayedQuests.find((q) => q.id === id)
+      if (ranked) {
+        handleSelectQuest(ranked)
+        setCameraCenter({ lat: ranked.lat, lng: ranked.lng })
+      }
+    }
+    window.addEventListener('xnext-select-quest', handler)
+    return () => window.removeEventListener('xnext-select-quest', handler)
+  }, [displayedQuests, handleSelectQuest])
 
   // Immediate visibility: when a discovery is created, refetch the radar so the
   // new experience appears on the map right away.
@@ -408,7 +534,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
           )}
 
           <QuestClusterer
-            quests={rankedQuests}
+            quests={displayedQuests}
             selectedId={selectedQuest?.id ?? null}
             onSelect={handleSelectFromMap}
             isLive={isLiveMode}
@@ -451,7 +577,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
 
             <button
               onClick={handleNext}
-              disabled={!rankedQuests.length}
+              disabled={!displayedQuests.length}
               className="ml-2 px-4 py-1.5 rounded bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-50"
               aria-label="Cycle to next experience"
             >
@@ -472,12 +598,54 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
               accuracy={accuracy}
               onRequestLocation={requestLocation}
             />
-            {/* Progress system — sense of advancement, not endless scrolling */}
-            <div className="radar-progress" role="status">
-              <span><strong>{rankedQuests.length}</strong> Nearby</span>
-              <span><strong>{completedCount ?? '—'}</strong> Completed</span>
-              <span><strong>{dreamCount ?? '—'}</strong> Dream List</span>
+            {/* Progress system — now tappable doorways back into the loop
+                (Phase 3). Nearby focuses the docked list; Completed + Dream List
+                open their existing views. */}
+            <div className="radar-progress">
+              <button
+                type="button"
+                className="radar-progress__stat"
+                onClick={() =>
+                  document
+                    .querySelector('.radar-list')
+                    ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                }
+                aria-label={`${displayedQuests.length} experiences nearby — view list`}
+              >
+                <strong>{displayedQuests.length}</strong> Nearby
+              </button>
+              <button
+                type="button"
+                className="radar-progress__stat"
+                onClick={() => navigate('/dashboard/completed')}
+                aria-label={`${completedCount ?? 0} completed — open Memories`}
+              >
+                <strong>{completedCount ?? '—'}</strong> Completed
+              </button>
+              <button
+                type="button"
+                className="radar-progress__stat"
+                onClick={() => navigate('/dashboard/dream-list')}
+                aria-label={`${dreamCount ?? 0} saved — open Dream List`}
+              >
+                <strong>{dreamCount ?? '—'}</strong> Dream List
+              </button>
             </div>
+
+            {/* Active Timeline filter chip — clearly shows the map is filtered
+                and offers a one-tap clear. */}
+            {timeframe !== 'all' && (
+              <div className="radar-filter-chip" role="status">
+                <span>Showing: {TIMEFRAME_LABEL[timeframe]}</span>
+                <button
+                  type="button"
+                  onClick={() => setTimeframe('all')}
+                  aria-label="Clear time filter"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             {/* Honesty: don't imply exact distances when we're on the regional
                 fallback. Suppressed while actively locating so the label doesn't
                 flash "approximate" during the GPS handshake. */}
@@ -583,7 +751,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
       </div>
 
       <QuestList
-        quests={rankedQuests}
+        quests={displayedQuests}
         selectedId={selectedQuest?.id ?? null}
         loading={loading || !mapsReady}
         error={questsError}

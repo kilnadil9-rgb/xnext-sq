@@ -74,7 +74,8 @@
   gap: 6px;
   flex-wrap: wrap;
 }
-.radar-progress span {
+.radar-progress span,
+.radar-progress__stat {
   padding: 3px 10px;
   border-radius: 999px;
   background: rgba(12, 13, 18, 0.78);
@@ -84,10 +85,56 @@
   color: rgba(244, 245, 247, 0.7);
   white-space: nowrap;
 }
+/* Tappable counters (Phase 3): min 36px hit height + clear press feedback */
+.radar-progress__stat {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+}
+.radar-progress__stat:hover {
+  background: rgba(249, 115, 22, 0.14);
+  border-color: rgba(249, 115, 22, 0.5);
+}
+.radar-progress__stat:active {
+  transform: scale(0.96);
+}
 .radar-progress strong {
   color: #f97316;
   font-weight: 800;
   margin-right: 3px;
+}
+
+/* Active Timeline filter chip (Phase 3) */
+.radar-filter-chip {
+  display: flex;
+  width: fit-content;
+  margin: 6px auto 0;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px 3px 12px;
+  border-radius: 999px;
+  background: rgba(249, 115, 22, 0.16);
+  border: 1px solid rgba(249, 115, 22, 0.5);
+  backdrop-filter: blur(10px);
+  font-size: 11px;
+  color: #fdba74;
+  white-space: nowrap;
+}
+.radar-filter-chip button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  color: #fdba74;
+  font-size: 12px;
+  line-height: 1;
+}
+.radar-filter-chip button:hover {
+  background: rgba(249, 115, 22, 0.25);
 }
 
 /* Nearby list clears the fixed bottom nav so last rows aren't hidden */

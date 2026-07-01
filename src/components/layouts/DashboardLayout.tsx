@@ -12,6 +12,17 @@ import { useUserLocation } from '../../hooks/useUserLocation'
 import { LocationPickerMap } from '../map/LocationPickerMap'
 import type { LatLng } from '../map/types'
 import { shareQuest } from '../../utils/shareQuest'
+import { dreamListService } from '../../services/dreamListService'
+import { questCompletionService } from '../../services/questCompletionService'
+import { formatDistance } from '../../lib/distance'
+
+/** Minimal nearby shape broadcast by MapScreen (Phase 3) for the Pulse sheet. */
+interface NearbySnapshotQuest {
+  id: string
+  title: string
+  experience_class: string
+  distance_km: number
+}
 
 /**
  * Phase 1 testing: discoveries are visible immediately so uploaders trust the
@@ -35,6 +46,95 @@ export function DashboardLayout() {
   const isMapHome = pathname === '/dashboard' || pathname === '/dashboard/' || pathname === '/dashboard/map'
 
   const [openSheet, setOpenSheet] = useState<'discover' | 'timeline' | 'pulse' | 'people' | null>(null)
+
+  // ── Phase 3: real data for Pulse + People (frontend-only, no fake activity) ──
+  // Current nearby experiences, broadcast by MapScreen. Used to detect when a
+  // saved (Dream List) experience is within range → a real Pulse card.
+  const [nearby, setNearby] = useState<NearbySnapshotQuest[]>([])
+  // The user's saved experiences (Dream List) and recent completions (Memories).
+  const [savedItems, setSavedItems] = useState<
+    { quest_id: string; title: string }[]
+  >([])
+  const [recentCompletions, setRecentCompletions] = useState<
+    { id: string; title: string; completed_at: string }[]
+  >([])
+  const [activityLoaded, setActivityLoaded] = useState(false)
+  // Timeline: which window is currently active (kept in sync for the sheet UI).
+  const [activeTimeframe, setActiveTimeframe] = useState<
+    'all' | 'today' | 'tonight' | 'weekend' | 'week' | 'month'
+  >('all')
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail as
+        | { quests?: NearbySnapshotQuest[] }
+        | undefined
+      if (detail?.quests) setNearby(detail.quests)
+    }
+    window.addEventListener('xnext-nearby-updated', handler)
+    return () => window.removeEventListener('xnext-nearby-updated', handler)
+  }, [])
+
+  // Lazily load the user's real activity the first time they open Pulse/People.
+  useEffect(() => {
+    if (openSheet !== 'pulse' && openSheet !== 'people') return
+    if (activityLoaded) return
+    let cancelled = false
+    Promise.all([
+      dreamListService.getMyDreamList({ status: 'saved', limit: 50 }),
+      questCompletionService.getMyCompletions({ limit: 10 }),
+    ]).then(([saved, completed]) => {
+      if (cancelled) return
+      if (saved.data) {
+        setSavedItems(
+          saved.data.map((d) => ({
+            quest_id: d.quest_id,
+            title: d.quests?.title ?? 'A saved experience',
+          })),
+        )
+      }
+      if (completed.data) {
+        setRecentCompletions(
+          completed.data.map((c) => ({
+            id: c.id,
+            title: c.quests?.title ?? 'An adventure',
+            completed_at: c.completed_at,
+          })),
+        )
+      }
+      setActivityLoaded(true)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [openSheet, activityLoaded])
+
+  // Saved experiences that are within the current nearby set → real Pulse cards.
+  const savedNearby = savedItems
+    .map((s) => {
+      const hit = nearby.find((n) => n.id === s.quest_id)
+      return hit ? { ...s, distance_km: hit.distance_km } : null
+    })
+    .filter((x): x is { quest_id: string; title: string; distance_km: number } => x !== null)
+    .sort((a, b) => a.distance_km - b.distance_km)
+    .slice(0, 3)
+
+  const selectQuestOnMap = (questId: string) => {
+    window.dispatchEvent(
+      new CustomEvent('xnext-select-quest', { detail: { id: questId } }),
+    )
+    closeSheet()
+  }
+
+  const applyTimeframe = (
+    range: 'all' | 'today' | 'tonight' | 'weekend' | 'week' | 'month',
+  ) => {
+    setActiveTimeframe(range)
+    window.dispatchEvent(
+      new CustomEvent('xnext-timeline-filter', { detail: { range } }),
+    )
+    closeSheet()
+  }
 
   // People panel "Share XNEXT" — invites friends to the app itself (not tied
   // to a single quest), reusing the same native-share-with-clipboard-fallback
@@ -571,90 +671,177 @@ export function DashboardLayout() {
                 </div>
               )}
 
-              {/* P2: Timeline — filter buttons close sheet, no explanatory text */}
+              {/* Phase 3: Timeline — real filter. Each button narrows the map +
+                  nearby list to that time window (evergreen experiences stay,
+                  time-sensitive events are filtered). No dead buttons. */}
               {openSheet === 'timeline' && (
                 <div>
                   <p className="text-sm text-white/60 mb-3">
                     Filter experiences by when you want to go.
                   </p>
                   <div className="grid grid-cols-2 gap-2">
-                    {['Today', 'Tonight', 'This Weekend', 'This Week', 'This Month'].map(f => (
+                    {([
+                      { label: 'Today', value: 'today' },
+                      { label: 'Tonight', value: 'tonight' },
+                      { label: 'This Weekend', value: 'weekend' },
+                      { label: 'This Week', value: 'week' },
+                      { label: 'This Month', value: 'month' },
+                    ] as const).map((f) => (
                       <button
-                        key={f}
-                        onClick={closeSheet}
-                        className="border border-white/20 rounded p-3 text-left text-sm text-white/70 hover:bg-white/10 transition-colors"
+                        key={f.value}
+                        onClick={() => applyTimeframe(f.value)}
+                        className={`rounded p-3 text-left text-sm transition-colors border ${
+                          activeTimeframe === f.value
+                            ? 'border-[#f97316] bg-[#f97316]/15 text-[#fdba74]'
+                            : 'border-white/20 text-white/70 hover:bg-white/10'
+                        }`}
                       >
-                        {f}
+                        {f.label}
                       </button>
                     ))}
+                    <button
+                      onClick={() => applyTimeframe('all')}
+                      className={`rounded p-3 text-left text-sm transition-colors border ${
+                        activeTimeframe === 'all'
+                          ? 'border-[#f97316] bg-[#f97316]/15 text-[#fdba74]'
+                          : 'border-white/20 text-white/70 hover:bg-white/10'
+                      }`}
+                    >
+                      All / Clear
+                    </button>
                   </div>
                 </div>
               )}
 
-              {/* Pulse — Opportunity Engine. Beta preview: static cards, no live
-                  data or fake activity, but written as an intentional feature
-                  in progress rather than an empty placeholder. */}
+              {/* Phase 3: Pulse — real opportunity cards from the user's Dream
+                  List crossed against what's actually nearby right now. No
+                  fabricated activity; honest empty states when there's nothing
+                  real to surface. */}
               {openSheet === 'pulse' && (
                 <div>
                   <div className="mb-3 flex items-center justify-between">
                     <h3 className="font-semibold text-white">Pulse — Opportunity Engine</h3>
                     <span className="rounded-full border border-[#fde047]/30 bg-[#fde047]/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-[#fde047]">
-                      Beta Preview
+                      Beta
                     </span>
                   </div>
-                  <p className="mb-3 text-xs text-white/50">
-                    Pulse watches for timing, weather, distance, and local opportunities so you don't miss the right moment.
-                  </p>
-                  <div className="space-y-2 text-sm">
-                    <div className="p-3 border border-white/10 bg-white/5 rounded text-white/70">
-                      🌤 Perfect weather window for a saved hike
-                    </div>
-                    <div className="p-3 border border-white/10 bg-white/5 rounded text-white/70">
-                      🎟 Limited-time local event nearby
-                    </div>
-                    <div className="p-3 border border-white/10 bg-white/5 rounded text-white/70">
-                      📍 A Dream List item is now within range
-                    </div>
-                  </div>
-                  <Link
-                    to="/dashboard/dream-list"
-                    onClick={closeSheet}
-                    className="mt-3 flex items-center justify-between rounded-lg border border-[#f97316]/40 bg-[#f97316]/10 px-3 py-2 text-xs text-[#fdba74]"
-                  >
-                    <span>Save experiences to your Dream List so Pulse can alert you later.</span>
-                    <span aria-hidden="true">→</span>
-                  </Link>
+
+                  {!activityLoaded ? (
+                    <p className="py-6 text-center text-xs text-white/40">Checking for opportunities…</p>
+                  ) : savedNearby.length > 0 ? (
+                    <>
+                      <p className="mb-3 text-xs text-white/50">
+                        A saved experience is within range right now:
+                      </p>
+                      <div className="space-y-2 text-sm">
+                        {savedNearby.map((s) => (
+                          <button
+                            key={s.quest_id}
+                            type="button"
+                            onClick={() => selectQuestOnMap(s.quest_id)}
+                            className="flex w-full items-center justify-between gap-3 rounded border border-[#f97316]/30 bg-[#f97316]/10 p-3 text-left text-white/80 hover:bg-[#f97316]/20 transition-colors"
+                          >
+                            <span>
+                              📍 <strong className="text-white">{s.title}</strong> is nearby
+                              <span className="block text-[11px] text-white/50">
+                                {formatDistance(s.distance_km * 1000)} away · from your Dream List
+                              </span>
+                            </span>
+                            <span aria-hidden="true" className="text-[#fdba74]">→</span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : savedItems.length > 0 ? (
+                    <>
+                      <p className="mb-3 text-xs text-white/50">
+                        Pulse watches your Dream List for the right moment — timing, distance, and local opportunities.
+                      </p>
+                      <div className="rounded border border-white/10 bg-white/5 p-3 text-sm text-white/70">
+                        You have <strong className="text-white">{savedItems.length}</strong> saved{' '}
+                        {savedItems.length === 1 ? 'experience' : 'experiences'}. None are within
+                        range right now — Pulse will surface them here when one comes close.
+                      </div>
+                      <Link
+                        to="/dashboard/dream-list"
+                        onClick={closeSheet}
+                        className="mt-3 flex items-center justify-between rounded-lg border border-[#f97316]/40 bg-[#f97316]/10 px-3 py-2 text-xs text-[#fdba74]"
+                      >
+                        <span>View your Dream List</span>
+                        <span aria-hidden="true">→</span>
+                      </Link>
+                    </>
+                  ) : (
+                    <>
+                      <p className="mb-3 text-xs text-white/50">
+                        Pulse watches for the right moment to go — timing, distance, and local opportunities.
+                      </p>
+                      <div className="rounded border border-white/10 bg-white/5 p-4 text-center text-sm text-white/60">
+                        Save experiences to your Dream List and Pulse will watch for the right moment.
+                      </div>
+                      <button
+                        type="button"
+                        onClick={closeSheet}
+                        className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-[#f97316]/40 bg-[#f97316]/10 px-3 py-2 text-xs text-[#fdba74]"
+                      >
+                        Explore the map to find experiences to save
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
 
-              {/* People — Experience Community. Beta preview: static cards
-                  only, no fake live activity — signals where the social layer
-                  around real-world experiences is headed. */}
+              {/* Phase 3: People — the user's own real activity (completions +
+                  saves), never fabricated other-user events. Honest empty state
+                  when there's no activity yet. */}
               {openSheet === 'people' && (
                 <div>
                   <div className="mb-3 flex items-center justify-between">
-                    <h3 className="font-semibold text-white">People — Experience Community</h3>
+                    <h3 className="font-semibold text-white">People — Your Activity</h3>
                     <span className="rounded-full border border-[#fde047]/30 bg-[#fde047]/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-[#fde047]">
-                      Beta Preview
+                      Beta
                     </span>
                   </div>
-                  <p className="mb-3 text-xs text-white/50">
-                    See what nearby explorers are discovering, saving, and completing.
-                  </p>
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3 p-2 border border-white/10 bg-white/5 rounded">
-                      <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center text-sm">📍</div>
-                      <div className="text-sm text-white/70">Someone discovered a hidden viewpoint nearby</div>
+
+                  {!activityLoaded ? (
+                    <p className="py-6 text-center text-xs text-white/40">Loading your activity…</p>
+                  ) : recentCompletions.length > 0 || savedItems.length > 0 ? (
+                    <>
+                      <p className="mb-3 text-xs text-white/50">
+                        Your adventures so far. A wider community layer is coming.
+                      </p>
+                      <div className="space-y-2">
+                        {recentCompletions.slice(0, 3).map((c) => (
+                          <div key={c.id} className="flex items-center gap-3 p-2 border border-white/10 bg-white/5 rounded">
+                            <div className="w-8 h-8 rounded-full bg-[#f97316]/15 flex-shrink-0 flex items-center justify-center text-sm">🏆</div>
+                            <div className="text-sm text-white/70">
+                              You completed <strong className="text-white">{c.title}</strong>
+                              <span className="block text-[11px] text-white/40">
+                                {new Date(c.completed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                        {savedItems.length > 0 && (
+                          <Link
+                            to="/dashboard/dream-list"
+                            onClick={closeSheet}
+                            className="flex items-center gap-3 p-2 border border-white/10 bg-white/5 rounded hover:bg-white/10 transition-colors"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center text-sm">🎒</div>
+                            <div className="text-sm text-white/70">
+                              <strong className="text-white">{savedItems.length}</strong> saved on your Dream List
+                            </div>
+                          </Link>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="rounded border border-white/10 bg-white/5 p-4 text-center text-sm text-white/60">
+                      Share or complete an experience to start building your activity.
                     </div>
-                    <div className="flex items-center gap-3 p-2 border border-white/10 bg-white/5 rounded">
-                      <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center text-sm">🎒</div>
-                      <div className="text-sm text-white/70">A weekend adventure was added to a Dream List</div>
-                    </div>
-                    <div className="flex items-center gap-3 p-2 border border-white/10 bg-white/5 rounded">
-                      <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center text-sm">🎆</div>
-                      <div className="text-sm text-white/70">A local event is getting attention tonight</div>
-                    </div>
-                  </div>
+                  )}
+
                   <div className="mt-3 rounded-lg border border-[#f97316]/40 bg-[#f97316]/10 px-3 py-2">
                     <p className="mb-2 text-xs text-[#fdba74]">
                       Share an experience to help grow the community.
