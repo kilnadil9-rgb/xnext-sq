@@ -337,6 +337,52 @@ export interface UpdateListingInput {
   is_featured?: boolean
   status?: QuestStatus
   media_urls?: string[]
+  /** Set when approving (status → published) so ordering/recency is correct. */
+  published_at?: string | null
+}
+
+// ── Admin Discovery Map (migration 024) ──────────────────────────────────────
+
+/** One row on the nationwide admin moderation map. */
+export interface AdminMapListing {
+  id: string
+  title: string
+  status: QuestStatus
+  experience_class: ExperienceClass
+  listing_type: ListingType | null
+  tier: ListingTier | null
+  is_featured: boolean
+  is_paid_listing: boolean
+  payment_status: PaymentStatus
+  verified_location: boolean
+  completed_count: number
+  city: string | null
+  country_code: string | null
+  location_name: string | null
+  created_at: string
+  published_at: string | null
+  starts_at: string | null
+  expires_at: string | null
+  lat: number
+  lng: number
+  media_urls: string[] | null
+  external_url: string | null
+  ticket_url: string | null
+  created_by: string
+  creator_trust_score: number | null
+  /** Venue/business name (migration 025) — used by Command Center search. */
+  business_name?: string | null
+}
+
+/**
+ * "Needs attention" moderation heuristic — REAL signals only (no report
+ * system yet): pending review, or a paid listing whose payment never settled.
+ */
+export function listingNeedsAttention(l: AdminMapListing): boolean {
+  return (
+    l.status === 'pending_review' ||
+    (l.is_paid_listing && l.payment_status !== 'paid')
+  )
 }
 
 export const listingService = {
@@ -583,12 +629,29 @@ export const listingService = {
     })
 
     let data: { url?: string; error?: string } = {}
-    try { data = await res.json() } catch {}
+    try { data = await res.json() } catch { /* malformed body — handled below */ }
 
     if (!res.ok || !data.url) {
       return { data: null, error: data.error || `Checkout failed (${res.status})` }
     }
     return { data: { url: data.url }, error: null }
+  },
+
+  /**
+   * Admin Discovery Map: every quest/listing with a coordinate, any status
+   * (migration 024 RPC). SECURITY INVOKER — non-admins get nothing beyond
+   * what their RLS already allows.
+   */
+  async adminMapListings(limit = 2000): Promise<ServiceResult<AdminMapListing[]>> {
+    const { data, error } = await (supabase.rpc as never as (
+      fn: string,
+      args: Record<string, unknown>,
+    ) => PromiseLike<{ data: AdminMapListing[] | null; error: unknown }>)(
+      'admin_map_listings',
+      { p_limit: limit },
+    )
+    if (error) return { data: null, error: extractMessage(error) }
+    return { data: data ?? [], error: null }
   },
 
   // ── Admin management: list / edit / delete ─────────────────────────────────

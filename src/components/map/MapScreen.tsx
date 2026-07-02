@@ -12,6 +12,7 @@ import {
 } from '@vis.gl/react-google-maps'
 import { useRef } from 'react'
 import { useUserLocation } from '../../hooks/useUserLocation'
+import { useAuth } from '../../hooks/useAuth'
 import { useNearbyQuests } from '../../hooks/useNearbyQuests'
 import { usePulseQuestIds } from '../../hooks/usePulseQuestIds'
 import { useQuestPreferences } from '../../hooks/useQuestPreferences'
@@ -235,9 +236,36 @@ export default function MapScreen({ cinematic = false }: MapScreenProps = {}) {
   )
 }
 
+// Admin "Travel Here" market preview (sessionStorage handoff from the
+// Discovery Map). Camera-only QA tool — it NEVER touches real GPS.
+const ADMIN_TRAVEL_KEY = 'xnext-admin-travel'
+
+interface AdminTravel {
+  lat: number
+  lng: number
+  label: string
+}
+
+function readAdminTravel(): AdminTravel | null {
+  try {
+    const raw = sessionStorage.getItem(ADMIN_TRAVEL_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as Partial<AdminTravel>
+    if (!Number.isFinite(parsed.lat) || !Number.isFinite(parsed.lng)) return null
+    return {
+      lat: parsed.lat as number,
+      lng: parsed.lng as number,
+      label: typeof parsed.label === 'string' ? parsed.label : 'selected market',
+    }
+  } catch {
+    return null
+  }
+}
+
 function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   const apiStatus = useApiLoadingStatus()
   const navigate = useNavigate()
+  const { profile } = useAuth()
 
   const {
     position: userPosition,
@@ -274,6 +302,25 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   // Live Mode state (Phase 1 MVP)
   const [isLiveMode, setIsLiveMode] = useState(false)
   const [liveRadiusMiles, setLiveRadiusMiles] = useState(5)
+
+  // Admin "Travel Here" market preview (Discovery Map → Home). Admin-only,
+  // camera-only: the radar query follows cameraCenter, real GPS is untouched.
+  const [adminTravel, setAdminTravel] = useState<AdminTravel | null>(null)
+  useEffect(() => {
+    if (!profile?.is_admin) return
+    const travel = readAdminTravel()
+    if (!travel) return
+    setAdminTravel(travel)
+    setFollowMe(false)
+    setCameraCenter({ lat: travel.lat, lng: travel.lng })
+  }, [profile])
+
+  const endAdminTravel = useCallback(() => {
+    sessionStorage.removeItem(ADMIN_TRAVEL_KEY)
+    setAdminTravel(null)
+    setFollowMe(true)
+    // followMe effect recenters on the next GPS tick; snap now if we have one.
+  }, [])
 
   // Yard Sale Route Mode (press-hold the center NEXT button).
   const [ysPromptOpen, setYsPromptOpen] = useState(false)
@@ -851,6 +898,29 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
               Exit Live
             </button>
           </>
+        )}
+
+        {/* Admin market preview pill (Travel Here — QA/moderation only).
+            Renders only for admins with an active preview; camera-only. */}
+        {adminTravel && profile?.is_admin && (
+          <div className="absolute left-1/2 top-3 z-[75] flex -translate-x-1/2 items-center gap-2.5 rounded-full border border-[#3b82f6]/60 bg-black/85 px-3.5 py-1.5 text-xs text-white shadow-[0_0_16px_rgba(59,130,246,0.35)] backdrop-blur">
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+              <span aria-hidden="true">🧭</span>
+              <span>
+                <span className="block text-[9px] uppercase tracking-[1.5px] text-[#93c5fd]/90 leading-none">
+                  Previewing
+                </span>
+                <span className="block font-bold leading-tight">{adminTravel.label}</span>
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={endAdminTravel}
+              className="whitespace-nowrap rounded-full bg-[#3b82f6] px-2.5 py-1 font-semibold text-white active:scale-95"
+            >
+              Return to My Location
+            </button>
+          </div>
         )}
 
         {/* Clearer permission note — XNEXT language, less generic.

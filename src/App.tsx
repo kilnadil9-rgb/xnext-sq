@@ -45,6 +45,7 @@ const CompletedQuestsPage = lazy(
 const PreferencesPage = lazy(() => import('./pages/dashboard/PreferencesPage'))
 const AdminReviewPage = lazy(() => import('./pages/dashboard/AdminReviewPage'))
 const AdminListingsPage = lazy(() => import('./pages/dashboard/AdminListingsPage'))
+const AdminDiscoveryMapPage = lazy(() => import('./pages/dashboard/AdminDiscoveryMapPage'))
 const PostListingPage = lazy(() => import('./pages/dashboard/PostListingPage'))
 
 const suspense = (node: ReactNode) => (
@@ -96,6 +97,9 @@ export function App() {
               <Route path="/dashboard/trust" element={<TrustPrivacyPage />} />
               <Route path="/dashboard/admin/review" element={suspense(<AdminReviewPage />)} />
               <Route path="/dashboard/admin/listings" element={suspense(<AdminListingsPage />)} />
+              <Route path="/dashboard/admin/discovery-map" element={suspense(<AdminDiscoveryMapPage />)} />
+              {/* Command Center — same page; old discovery-map path kept for stability. */}
+              <Route path="/dashboard/admin/command-center" element={suspense(<AdminDiscoveryMapPage />)} />
               {/* Single source of truth: Home IS the map. /map is folded into
                   Home so mobile, preview, and prod show one experience. */}
               <Route path="/dashboard/map" element={<Navigate to="/dashboard" replace />} />

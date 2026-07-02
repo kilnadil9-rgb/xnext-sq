@@ -405,6 +405,7 @@ export function DashboardLayout() {
               <ul className="space-y-1">
                 <NavItem to="/dashboard/admin/listings" label="Create Listing" icon={QuestIcon} />
                 <NavItem to="/dashboard/admin/review" label="Review Queue" icon={DreamListIcon} />
+                <NavItem to="/dashboard/admin/discovery-map" label="Command Center" icon={PulseIcon} />
               </ul>
             </div>
           )}
