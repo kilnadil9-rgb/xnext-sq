@@ -44,6 +44,11 @@ const WEIGHTS = {
   pulse: 0.1,
   preference: 0.15,
   seasonal: 0.25,
+  // Verified Adventure System: community-verified locations get a SLIGHT
+  // relevance boost (trust signal, roughly half a pulse). Deliberately small —
+  // it breaks ties in favor of verified quests without burying fresh uploads.
+  // Distance/SQ sort modes are untouched (those stay factual).
+  verified: 0.08,
 } as const
 
 const RECENCY_WINDOW_DAYS = 30
@@ -128,7 +133,8 @@ export function rankQuests(
         WEIGHTS.recency * recency +
         WEIGHTS.pulse * (hasPulse ? 1 : 0) +
         WEIGHTS.preference * (preferred ? 1 : 0) +
-        WEIGHTS.seasonal * seasonal,
+        WEIGHTS.seasonal * seasonal +
+        WEIGHTS.verified * (q.verified_location ? 1 : 0),
     }
   })
 

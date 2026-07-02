@@ -7,6 +7,7 @@ import {
   type RankedQuest,
 } from '../../lib/adventureRadar'
 import { seasonBadges, seasonalStatusLabel } from '../../lib/season'
+import { VerifiedBadge } from '../ui/VerifiedBadge'
 
 interface Props {
   quests: RankedQuest[]
@@ -134,7 +135,15 @@ export function QuestList({
                 }
                 onClick={() => onSelect(quest)}
               >
-                <span className="radar-row__title">{quest.title}</span>
+                <span className="radar-row__title">
+                  {quest.title}
+                  {quest.verified_location && (
+                    <>
+                      {' '}
+                      <VerifiedBadge size={14} />
+                    </>
+                  )}
+                </span>
                 <span className="radar-row__meta">
                   <span className="radar-row__class">
                     {quest.experience_class}

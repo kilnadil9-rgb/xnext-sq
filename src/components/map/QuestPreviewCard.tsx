@@ -11,6 +11,8 @@ import {
   type RouteResult,
 } from './DirectionsLayer'
 import { listingBadge } from '../../services/listingService'
+import { VerifiedBadge } from '../ui/VerifiedBadge'
+import { explorerProofLabel } from '../../lib/trust'
 import { seasonBadges, seasonalStatusLabel } from '../../lib/season'
 import { shareQuest } from '../../utils/shareQuest'
 
@@ -254,7 +256,11 @@ export function QuestPreviewCard({
   /* ── Tier 1: compact card (default) ───────────────────────────────────── */
   if (view === 'compact') {
     return (
-      <div className="quest-compact" role="dialog" aria-label={quest.title}>
+      <div
+        className={`quest-compact${quest.verified_location ? ' quest-compact--verified' : ''}`}
+        role="dialog"
+        aria-label={quest.title}
+      >
         <button
           type="button"
           className="quest-compact__body"
@@ -283,7 +289,15 @@ export function QuestPreviewCard({
                 {seasonStatus}
               </span>
             )}
-            <span className="quest-compact__title">{quest.title}</span>
+            <span className="quest-compact__title">
+              {quest.title}
+              {quest.verified_location && (
+                <>
+                  {' '}
+                  <VerifiedBadge size={14} />
+                </>
+              )}
+            </span>
             <span className="quest-compact__meta">
               <span className="quest-compact__class">{quest.experience_class}</span>
               {' · '}{distLabel}
@@ -550,7 +564,19 @@ export function QuestPreviewCard({
           ))}
         </div>
       )}
-      <h2>{quest.title}</h2>
+      <h2>
+        {quest.title}
+        {quest.verified_location && (
+          <>
+            {' '}
+            <VerifiedBadge withLabel label="Verified by explorers" size={18} />
+          </>
+        )}
+      </h2>
+      {/* Social proof — real counts only; renders nothing at zero. */}
+      {explorerProofLabel(quest) && (
+        <p className="quest-sheet__proof">{explorerProofLabel(quest)}</p>
+      )}
       <p className="quest-sheet__meta">
         {quest.experience_class} · {distLabel}
         {quest.location_name ? ` · ${quest.location_name}` : ''}

@@ -4,6 +4,40 @@ import type { ServiceResult } from '../lib/serviceUtils'
 import { extractMessage } from '../lib/serviceUtils'
 import { toEwktPoint, questSlug } from '../lib/geo'
 
+// ─── Phase 1.8 rollout safety ──────────────────────────────────────────────────
+// Columns added by migration 019. If the migration hasn't been applied yet (or
+// PostgREST's schema cache is stale), inserts/updates that reference these
+// columns fail with PGRST204 ("Could not find the '<col>' column ... in the
+// schema cache"). We detect that and transparently retry without them so
+// creators can still publish during rollout.
+const SEASONAL_COLUMNS = [
+  'season_tags',
+  'active_months',
+  'start_date',
+  'end_date',
+  'priority_boost',
+  'is_evergreen',
+  'parking_point',
+] as const
+
+function isMissingColumnError(error: unknown): boolean {
+  const e = error as { code?: string; message?: string } | null
+  if (!e) return false
+  if (e.code === 'PGRST204') return true
+  const msg = e.message ?? ''
+  return /schema cache/i.test(msg) && /column/i.test(msg)
+}
+
+function withoutSeasonalColumns<T extends Record<string, unknown>>(
+  payload: T,
+): Partial<T> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(payload)) {
+    if (!(SEASONAL_COLUMNS as readonly string[]).includes(key)) out[key] = value
+  }
+  return out as Partial<T>
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type { ServiceResult } from '../lib/serviceUtils'
@@ -359,11 +393,28 @@ export const questService = {
       parking_point: input.parking ? toEwktPoint(input.parking) : null,
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('quests')
       .insert(insertPayload as never)
       .select()
       .single()
+
+    // Rollout safety: if the seasonal/parking columns aren't visible yet,
+    // retry without them so the upload still succeeds.
+    if (error && isMissingColumnError(error)) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[questService] seasonal columns missing from schema cache — ' +
+            'retrying create without Phase 1.8 fields. Apply migration 019 and run ' +
+            "NOTIFY pgrst, 'reload schema';",
+        )
+      }
+      ;({ data, error } = await supabase
+        .from('quests')
+        .insert(withoutSeasonalColumns(insertPayload) as never)
+        .select()
+        .single())
+    }
 
     if (error) return { data: null, error: extractMessage(error) }
     return { data, error: null }
@@ -392,13 +443,30 @@ export const questService = {
       updatePayload.parking_point = parking ? toEwktPoint(parking) : null
     }
 
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from('quests')
       .update(updatePayload as never)
       .eq('id', id)
       .eq('created_by', user.id)
       .select()
       .single()
+
+    // Rollout safety: retry without seasonal/parking columns if not yet visible.
+    if (error && isMissingColumnError(error)) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[questService] seasonal columns missing from schema cache — ' +
+            'retrying update without Phase 1.8 fields.',
+        )
+      }
+      ;({ data, error } = await supabase
+        .from('quests')
+        .update(withoutSeasonalColumns(updatePayload) as never)
+        .eq('id', id)
+        .eq('created_by', user.id)
+        .select()
+        .single())
+    }
 
     if (error) return { data: null, error: extractMessage(error) }
     return { data, error: null }

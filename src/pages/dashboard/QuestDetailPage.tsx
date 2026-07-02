@@ -5,6 +5,8 @@ import { dreamListService } from '../../services/dreamListService'
 import type { QuestByIdResult } from '../../lib/supabase/types'
 import { LoadingState } from '../../components/ui/LoadingState'
 import { ErrorState } from '../../components/ui/ErrorState'
+import { VerifiedBadge } from '../../components/ui/VerifiedBadge'
+import { explorerProofLabel } from '../../lib/trust'
 
 export function QuestDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -116,7 +118,21 @@ export function QuestDetailPage() {
             <span className="text-xl font-semibold text-primary">SQ {quest.sq_score}</span>
           )}
         </div>
-        <h1 className="mt-3 text-3xl font-bold text-foreground">{quest.title}</h1>
+        <h1 className="mt-3 text-3xl font-bold text-foreground">
+          {quest.title}
+          {quest.verified_location && (
+            <>
+              {' '}
+              <VerifiedBadge withLabel size={20} />
+            </>
+          )}
+        </h1>
+        {/* Social proof — real counts only; renders nothing at zero. */}
+        {explorerProofLabel(quest) && (
+          <p className="mt-1 text-sm font-medium text-[#3b82f6]">
+            {explorerProofLabel(quest)}
+          </p>
+        )}
         {quest.location_name && (
           <p className="mt-1 text-muted-foreground">{quest.location_name}</p>
         )}

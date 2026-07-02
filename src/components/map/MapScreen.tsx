@@ -187,6 +187,8 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
     accuracy,
     status: locationStatus,
     error: locationError,
+    permission: locationPermission,
+    blocked: locationBlocked,
     request: requestLocation,
   } = useUserLocation()
 
@@ -237,17 +239,25 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
 
 
 
-  // Auto-request location clearly on first load of the radar (triggers permission prompt where possible).
-  // For strict mobile Safari, the locate button remains the reliable gesture-based fallback.
-  // Adventure Radar will use real user coords once granted.
+  // Auto-request location on first load — but ONLY when permission is already
+  // granted (or the Permissions API is unavailable). When permission is
+  // 'prompt', we must NOT auto-fire: Android Chrome and the Facebook in-app
+  // browser only show the native prompt from a user gesture, and an auto call
+  // that fails silently left the Enable tap in a broken state. The Enable
+  // button / locate button call requestLocation() directly from the tap.
+  // When 'denied' (blocked), no call can prompt — the UI shows settings guidance.
   useEffect(() => {
-    if (locationStatus === 'idle' && mapsReady) {
+    if (
+      locationStatus === 'idle' &&
+      mapsReady &&
+      (locationPermission === 'granted' || locationPermission === 'unknown')
+    ) {
       if (import.meta.env.DEV) {
-        console.log('[MapScreen] First load — requesting user location for centering and Radar query')
+        console.log('[MapScreen] First load — permission granted/unknown, requesting user location')
       }
       requestLocation()
     }
-  }, [locationStatus, mapsReady, requestLocation])
+  }, [locationStatus, mapsReady, locationPermission, requestLocation])
 
   // Follow-me map mode: while following, keep the camera (and the radar query
   // center) locked to the user's live position. Manual drag turns this off;
@@ -491,6 +501,18 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
 
   const isLive = locationStatus === 'active'
 
+  // Radar capsule status: when we deliberately skipped the auto-request
+  // (permission === 'prompt' needs a user gesture), show the "Enable" state
+  // instead of an endless "Locating you…".
+  const capsuleStatus =
+    locationStatus === 'idle' && locationPermission === 'prompt'
+      ? ('denied' as const)
+      : locationStatus
+
+  // Single source of truth for the blocked-permission guidance copy.
+  const blockedMessage =
+    'Location is blocked. Open browser settings and allow location for xnext.app.'
+
   return (
     <div className={`radar-screen${cinematic ? ' radar-screen--cinematic' : ''}`}>
       <div className="radar-screen__map">
@@ -594,7 +616,8 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
             <AdventureRadarCapsule
               questCount={rankedQuests.length}
               isLive={isLive}
-              locationStatus={locationStatus}
+              locationStatus={capsuleStatus}
+              blocked={locationBlocked}
               accuracy={accuracy}
               onRequestLocation={requestLocation}
             />
@@ -646,18 +669,11 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
                 </button>
               </div>
             )}
-            {/* Honesty: don't imply exact distances when we're on the regional
-                fallback. Suppressed while actively locating so the label doesn't
-                flash "approximate" during the GPS handshake. */}
-            {!isLive && locationStatus !== 'locating' && locationStatus !== 'idle' && (
-              <button
-                type="button"
-                className="radar-approx"
-                onClick={requestLocation}
-              >
-                📍 Using approximate location — tap to enable GPS
-              </button>
-            )}
+            {/* Banner dedupe: the Adventure Radar capsule above is the single
+                location banner on cinematic Home (message + Enable button, or
+                blocked-settings guidance). The old "Using approximate location
+                — tap to enable GPS" pill duplicated it and stacked on top once
+                the app already knew GPS was unavailable, so it's gone. */}
           </div>
         )}
 
@@ -709,12 +725,16 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
           {locationStatus === 'locating' ? '…' : '◎'}
         </button>
 
-        {locationStatus === 'denied' && (
+        {/* Location toasts: classic /map only — on cinematic Home the radar
+            capsule is the single location banner (no stacked duplicates). */}
+        {!cinematic && locationStatus === 'denied' && (
           <div className="map-toast map-toast--error">
-            Location off. Enable it to see real experiences around you. XNEXT never sells your location.
+            {locationBlocked
+              ? blockedMessage
+              : 'Location off. Enable it to see real experiences around you. XNEXT never sells your location.'}
           </div>
         )}
-        {locationError && locationStatus === 'error' && (
+        {!cinematic && locationError && locationStatus === 'error' && (
           <div className="map-toast map-toast--error">{locationError}</div>
         )}
         {selectedQuest && (

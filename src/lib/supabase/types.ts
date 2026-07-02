@@ -42,6 +42,12 @@ export interface Profile {
   terms_version: string | null
   data_deletion_requested_at: string | null
   data_deletion_scheduled_for: string | null
+  /**
+   * Explorer Trust Score (migration 022, backend-only for now):
+   * +1 per quest completed, +5 when an uploaded quest becomes Verified.
+   * Future: trusted users get faster approvals. No UI reads it yet.
+   */
+  trust_score?: number
   created_at: string
   updated_at: string
 }
@@ -214,6 +220,10 @@ export interface Quest {
   is_evergreen?: boolean
   /** Optional drive-to parking coordinate (migration 019); WKB hex when read. */
   parking_point?: unknown | null
+  /** Verified Location (migration 021): true once >= 3 unique users completed it. */
+  verified_location?: boolean
+  /** Unique-completer count for social proof (migration 022). */
+  completed_count?: number
   // scoring_factors and availability_windows are NOT columns on the quests table
   // (per review). They have been removed from Quest Row type to avoid phantom
   // properties. Use QuestByIdResult for getQuestById() if/when they are sourced
@@ -272,6 +282,10 @@ export interface NearbyQuest {
   parking_lng?: number | null
   /** Image gallery (migration 020 RPC). First entry is used as the card image. */
   media_urls?: string[] | null
+  /** Verified Location (migration 021 RPC): >= 3 unique users completed it. */
+  verified_location?: boolean
+  /** Unique-completer count for social proof (migration 022 RPC). */
+  completed_count?: number
 }
 
 // ─── SQ Domain tables (derived directly from migrations 008-013) ──────────────

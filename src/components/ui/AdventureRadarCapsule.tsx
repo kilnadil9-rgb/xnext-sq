@@ -13,6 +13,12 @@ interface AdventureRadarCapsuleProps {
   questCount: number
   isLive: boolean
   locationStatus: LocationStatus
+  /**
+   * Permission is hard-blocked at the browser level: tapping Enable cannot
+   * show the native prompt, so we show settings guidance instead of a dead
+   * button.
+   */
+  blocked?: boolean
   /** GPS accuracy in meters (when known) — drives the precise vs. approximate label. */
   accuracy?: number | null
   onRequestLocation?: () => void
@@ -22,18 +28,21 @@ export function AdventureRadarCapsule({
   questCount,
   isLive,
   locationStatus,
+  blocked = false,
   accuracy = null,
   onRequestLocation,
 }: AdventureRadarCapsuleProps) {
   const needsLocation =
     locationStatus === 'denied' || locationStatus === 'unavailable' || locationStatus === 'error'
-  const isLocating = locationStatus === 'idle' || locationStatus === 'locating'
+  const isLocating = !needsLocation && (locationStatus === 'idle' || locationStatus === 'locating')
 
   // Explicit location-confidence line: Locating… / Location found / Approximate.
   // A coarse fix (> ~150 m, e.g. IP/Wi-Fi based) is shown as "Approximate".
   const isApproximate = typeof accuracy === 'number' && accuracy > 150
   const locationLine: string | null = needsLocation
-    ? 'Tap Enable to find experiences near you'
+    ? blocked
+      ? 'Location is blocked. Open browser settings and allow location for xnext.app.'
+      : 'Tap Enable to find experiences near you'
     : isLocating
       ? null
       : isApproximate
@@ -79,7 +88,9 @@ export function AdventureRadarCapsule({
         </div>
         <div className="text-sm text-white font-bold mt-0.5 leading-tight">
           {needsLocation
-            ? 'Location access needed'
+            ? blocked
+              ? 'Location blocked'
+              : 'Location access needed'
             : isLocating
               ? 'Locating you…'
               : questCount > 0
@@ -111,7 +122,9 @@ export function AdventureRadarCapsule({
         </div>
       )}
 
-      {needsLocation && onRequestLocation && (
+      {/* No Enable button when blocked — getCurrentPosition can't prompt then;
+          the guidance line above tells the user to fix it in browser settings. */}
+      {needsLocation && !blocked && onRequestLocation && (
         <button
           onClick={onRequestLocation}
           className="flex-shrink-0 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 text-white/70 text-[11px] font-semibold hover:bg-white/15 active:scale-95 transition-all"
