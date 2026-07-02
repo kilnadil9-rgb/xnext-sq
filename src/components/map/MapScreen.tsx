@@ -15,7 +15,9 @@ import { useUserLocation } from '../../hooks/useUserLocation'
 import { useNearbyQuests } from '../../hooks/useNearbyQuests'
 import { usePulseQuestIds } from '../../hooks/usePulseQuestIds'
 import { useQuestPreferences } from '../../hooks/useQuestPreferences'
-import { formatDistance } from '../../lib/distance'
+import { formatDistance, haversineMeters } from '../../lib/distance'
+import { questService } from '../../services/questService'
+import type { NearbyQuest } from '../../lib/supabase/types'
 import {
   rankQuests,
   type RadarSortMode,
@@ -28,7 +30,13 @@ import { QuestClusterer } from './QuestClusterer'
 import { QuestList } from './QuestList'
 import { QuestPreviewCard } from './QuestPreviewCard'
 import { GooglePoiSheet, type GooglePoiSelection } from './GooglePoiSheet'
-import { RouteLayer, type RouteStatus, type RouteResult } from './DirectionsLayer'
+import {
+  RouteLayer,
+  MultiStopRouteLayer,
+  googleMapsMultiStopUrl,
+  type RouteStatus,
+  type RouteResult,
+} from './DirectionsLayer'
 import { PlaceSearch } from './PlaceSearch'
 import { AdventureRadarCapsule } from '../ui/AdventureRadarCapsule'
 import { questCompletionService } from '../../services/questCompletionService'
@@ -45,6 +53,55 @@ interface MapScreenProps {
 }
 
 const RADIUS_OPTIONS_KM = [1, 2.5, 5, 10, 25, 50]
+
+// Single source of truth for the blocked-permission guidance copy.
+const blockedMessage =
+  'Location is blocked. Open browser settings and allow location for xnext.app.'
+
+// ── Yard Sale Route Mode (press-hold the center NEXT button) ─────────────────
+/** 30 miles, per the feature spec. */
+const YS_RADIUS_KM = 30 * 1.60934
+/** Practical cap: keeps the Directions request + the drive sane. */
+const YS_MAX_STOPS = 10
+
+/**
+ * Pick and order yard-sale stops. Priority (featured/paid placement first,
+ * then community-verified) decides WHICH sales make the cut when there are
+ * more than `maxStops`; geography (greedy nearest-neighbor from the user)
+ * decides the visiting order. Google then refines the middle legs.
+ */
+function orderYardSaleStops(
+  userPos: LatLng,
+  sales: NearbyQuest[],
+  maxStops: number,
+): NearbyQuest[] {
+  const shortlisted = [...sales]
+    .sort((a, b) => {
+      const pa = (a.is_featured ? 2 : 0) + (a.verified_location ? 1 : 0)
+      const pb = (b.is_featured ? 2 : 0) + (b.verified_location ? 1 : 0)
+      return pb - pa || a.distance_km - b.distance_km
+    })
+    .slice(0, maxStops)
+
+  const remaining = [...shortlisted]
+  const ordered: NearbyQuest[] = []
+  let cursor = userPos
+  while (remaining.length > 0) {
+    let bestIdx = 0
+    let bestDist = Infinity
+    remaining.forEach((q, i) => {
+      const d = haversineMeters(cursor, { lat: q.lat, lng: q.lng })
+      if (d < bestDist) {
+        bestDist = d
+        bestIdx = i
+      }
+    })
+    const next = remaining.splice(bestIdx, 1)[0]
+    ordered.push(next)
+    cursor = { lat: next.lat, lng: next.lng }
+  }
+  return ordered
+}
 
 /** Snap an arbitrary preferred distance onto the nearest radius option. */
 function nearestRadiusOption(km: number): number {
@@ -217,6 +274,17 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   // Live Mode state (Phase 1 MVP)
   const [isLiveMode, setIsLiveMode] = useState(false)
   const [liveRadiusMiles, setLiveRadiusMiles] = useState(5)
+
+  // Yard Sale Route Mode (press-hold the center NEXT button).
+  const [ysPromptOpen, setYsPromptOpen] = useState(false)
+  const [ysLoading, setYsLoading] = useState(false)
+  const [ysError, setYsError] = useState<string | null>(null)
+  /** Stops as sent to the route layer (stable — never reordered in place). */
+  const [ysStops, setYsStops] = useState<NearbyQuest[] | null>(null)
+  /** Stops in Google's optimized visiting order, for the list UI. */
+  const [ysDisplayStops, setYsDisplayStops] = useState<NearbyQuest[] | null>(null)
+  const [ysStatus, setYsStatus] = useState<RouteStatus>('idle')
+  const [ysResult, setYsResult] = useState<RouteResult | null>(null)
 
   // Progress system (cinematic Home only): Completed + Dream List counts.
   const [completedCount, setCompletedCount] = useState<number | null>(null)
@@ -481,6 +549,83 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
 
   const handleRetry = useCallback(() => setRefreshKey((k) => k + 1), [])
 
+  // Press-hold on the center NEXT button → glass quick-action popup.
+  useEffect(() => {
+    const handler = () => {
+      setYsError(null)
+      setYsPromptOpen(true)
+    }
+    window.addEventListener('xnext-longpress', handler)
+    return () => window.removeEventListener('xnext-longpress', handler)
+  }, [])
+
+  const endYardSaleRoute = useCallback(() => {
+    setYsStops(null)
+    setYsDisplayStops(null)
+    setYsStatus('idle')
+    setYsResult(null)
+    setYsError(null)
+  }, [])
+
+  const startYardSaleRoute = useCallback(async () => {
+    if (!userPosition) {
+      setYsError(
+        locationBlocked
+          ? blockedMessage
+          : 'XNEXT needs your location for the starting point — tap Enable location below, then Start Route.',
+      )
+      return
+    }
+    setYsLoading(true)
+    setYsError(null)
+    const result = await questService.getNearbyQuests(
+      userPosition.lat,
+      userPosition.lng,
+      YS_RADIUS_KM,
+      { limit: 100 },
+    )
+    setYsLoading(false)
+    if (result.error) {
+      setYsError(result.error)
+      return
+    }
+    // Real listings only — the RPC already filters to published + active
+    // window + paid-settled, so every match here is live right now.
+    const sales = (result.data ?? []).filter((q) => q.listing_type === 'yard_sale')
+    if (sales.length === 0) {
+      setYsError('No active yard sales within 30 miles right now.')
+      return
+    }
+    const ordered = orderYardSaleStops(userPosition, sales, YS_MAX_STOPS)
+    // Discovery mode takes the stage: clear the single-quest card + route.
+    setSelectedQuest(null)
+    setSelectedPoi(null)
+    clearRoute()
+    setFollowMe(false)
+    setYsStops(ordered)
+    setYsDisplayStops(ordered)
+    setYsStatus('loading')
+    setYsResult(null)
+    setYsPromptOpen(false)
+  }, [userPosition, locationBlocked, clearRoute])
+
+  // Google's optimized waypoint order → reorder the LIST only (the layer's
+  // props stay stable, so this never triggers a second Directions request).
+  const handleYsOptimizedOrder = useCallback(
+    (order: number[]) => {
+      setYsDisplayStops(() => {
+        if (!ysStops || ysStops.length === 0) return ysStops
+        const middle = ysStops.slice(0, -1)
+        const last = ysStops[ysStops.length - 1]
+        const reordered = order
+          .map((i) => middle[i])
+          .filter((q): q is NearbyQuest => Boolean(q))
+        return [...reordered, last]
+      })
+    },
+    [ysStops],
+  )
+
   // Widen the search radius to the next larger preset (used by empty-state CTA).
   const canWiden = radiusKm < RADIUS_OPTIONS_KM[RADIUS_OPTIONS_KM.length - 1]
   const handleWiden = useCallback(() => {
@@ -509,9 +654,6 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
       ? ('denied' as const)
       : locationStatus
 
-  // Single source of truth for the blocked-permission guidance copy.
-  const blockedMessage =
-    'Location is blocked. Open browser settings and allow location for xnext.app.'
 
   return (
     <div className={`radar-screen${cinematic ? ' radar-screen--cinematic' : ''}`}>
@@ -564,13 +706,24 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
 
           {/* In-app route preview line (Phase 2). Mounts only while a preview
               is active AND we have a GPS fix; unmounting clears the line. */}
-          {routeDest && userPosition && (
+          {routeDest && userPosition && !ysStops && (
             <RouteLayer
               key={`${routeDest.lat},${routeDest.lng}`}
               origin={userPosition}
               destination={routeDest}
               onStatus={setRouteStatus}
               onResult={setRouteResult}
+            />
+          )}
+
+          {/* Yard Sale Route (multi-stop). Unmounting clears the line. */}
+          {ysStops && ysStops.length > 0 && userPosition && (
+            <MultiStopRouteLayer
+              origin={userPosition}
+              stops={ysStops.map((q) => ({ lat: q.lat, lng: q.lng }))}
+              onStatus={setYsStatus}
+              onResult={setYsResult}
+              onOptimizedOrder={handleYsOptimizedOrder}
             />
           )}
         </Map>
@@ -737,7 +890,137 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
         {!cinematic && locationError && locationStatus === 'error' && (
           <div className="map-toast map-toast--error">{locationError}</div>
         )}
-        {selectedQuest && (
+        {/* ── Yard Sale Route: glass quick-action popup (press-hold NEXT) ── */}
+        {ysPromptOpen && (
+          <div
+            className="ys-backdrop"
+            onClick={() => setYsPromptOpen(false)}
+            role="presentation"
+          >
+            <div
+              className="ys-modal"
+              role="dialog"
+              aria-label="Yard Sale Route"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="ys-modal__icon" aria-hidden="true">🏷️</div>
+              <h2 className="ys-modal__title">Yard Sale Route</h2>
+              <p className="ys-modal__copy">
+                Find every active yard sale within 30 miles and build a route
+                from your current location.
+              </p>
+
+              {ysError && (
+                <p className="ys-modal__error" role="alert">{ysError}</p>
+              )}
+
+              {/* Location gate: the route needs a real starting point. The
+                  Enable tap calls getCurrentPosition directly (gesture-safe). */}
+              {!userPosition && !locationBlocked && (
+                <button
+                  type="button"
+                  className="ys-modal__secondary"
+                  onClick={requestLocation}
+                >
+                  📍 Enable location
+                </button>
+              )}
+
+              <div className="ys-modal__actions">
+                <button
+                  type="button"
+                  className="ys-modal__cancel"
+                  onClick={() => setYsPromptOpen(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="ys-modal__start"
+                  disabled={ysLoading}
+                  onClick={startYardSaleRoute}
+                >
+                  {ysLoading ? 'Finding yard sales…' : 'Start Route'}
+                </button>
+              </div>
+
+              {/* Live Mode used to own this long-press — keep it reachable. */}
+              <button
+                type="button"
+                className="ys-modal__live"
+                onClick={() => {
+                  setYsPromptOpen(false)
+                  window.dispatchEvent(new CustomEvent('xnext-live-enter'))
+                }}
+              >
+                ⭐ Live Mode instead
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── Yard Sale Route: active route panel (replaces the quest card) ── */}
+        {ysStops && ysDisplayStops && (
+          <div className="ys-panel" role="dialog" aria-label="Yard Sale Route preview">
+            <div className="ys-panel__head">
+              <span className="ys-panel__title">
+                🏷️ Yard Sale Route · {ysDisplayStops.length} stop{ysDisplayStops.length !== 1 ? 's' : ''}
+              </span>
+              <button
+                type="button"
+                className="ys-panel__close"
+                aria-label="End route"
+                onClick={endYardSaleRoute}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p className="ys-panel__status">
+              {ysStatus === 'loading'
+                ? 'Building your route…'
+                : ysStatus === 'ok' && ysResult
+                  ? `🚗 ${ysResult.durationText} · ${ysResult.distanceText} total`
+                  : ysStatus === 'denied'
+                    ? 'Route line needs Google Directions enabled — stop order below still works.'
+                    : ysStatus === 'error'
+                      ? 'Couldn’t draw the route line — stop order below still works.'
+                      : null}
+            </p>
+
+            <ol className="ys-panel__stops">
+              {ysDisplayStops.map((q) => (
+                <li key={q.id}>
+                  <span className="ys-panel__stop-title">{q.title}</span>
+                  {q.location_name && (
+                    <span className="ys-panel__stop-sub"> — {q.location_name}</span>
+                  )}
+                </li>
+              ))}
+            </ol>
+
+            <div className="ys-panel__actions">
+              {userPosition && (
+                <a
+                  className="ys-panel__maps"
+                  href={googleMapsMultiStopUrl(
+                    userPosition,
+                    ysDisplayStops.map((q) => ({ lat: q.lat, lng: q.lng })),
+                  )}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  Open full navigation in Google Maps ↗
+                </a>
+              )}
+              <button type="button" className="ys-panel__end" onClick={endYardSaleRoute}>
+                End Route
+              </button>
+            </div>
+          </div>
+        )}
+
+        {selectedQuest && !ysStops && (
           <QuestPreviewCard
             quest={selectedQuest}
             userLocation={locationStatus === 'active' ? userPosition : null}
@@ -753,7 +1036,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
             routeResult={routeResult}
           />
         )}
-        {selectedPoi && !selectedQuest && (
+        {selectedPoi && !selectedQuest && !ysStops && (
           <GooglePoiSheet
             poi={selectedPoi}
             onClose={() => {

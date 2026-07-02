@@ -1585,3 +1585,202 @@
   font-size: 12.5px;
   font-weight: 600;
 }
+
+/* ── Partner presentation (023): photo strip + partner links ─────────────────*/
+.quest-sheet__gallery {
+  display: flex;
+  gap: 8px;
+  margin: -4px 0 12px;
+}
+.quest-sheet__gallery img {
+  width: calc(50% - 4px);
+  height: 76px;
+  object-fit: cover;
+  border-radius: 10px;
+}
+.quest-sheet__tickets {
+  text-decoration: none;
+  text-align: center;
+}
+.quest-sheet__weblink {
+  display: inline-flex;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid rgba(244, 245, 247, 0.18);
+  color: rgba(244, 245, 247, 0.85);
+  font-size: 13px;
+  text-decoration: none;
+}
+.quest-sheet__weblink:hover {
+  background: rgba(244, 245, 247, 0.06);
+}
+
+/* ── Yard Sale Route Mode (press-hold the center NEXT button) ────────────────*/
+.ys-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(5, 6, 10, 0.55);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.ys-modal {
+  width: 100%;
+  max-width: 380px;
+  padding: 22px 20px 16px;
+  border-radius: 20px;
+  text-align: center;
+  background: rgba(13, 14, 20, 0.82);
+  border: 1px solid rgba(249, 115, 22, 0.4);
+  box-shadow: 0 0 40px rgba(249, 115, 22, 0.15), 0 24px 60px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.ys-modal__icon {
+  font-size: 34px;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+.ys-modal__title {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 800;
+  color: #f4f5f7;
+  letter-spacing: 0.3px;
+}
+.ys-modal__copy {
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: rgba(244, 245, 247, 0.7);
+}
+.ys-modal__error {
+  margin: 0 0 12px;
+  font-size: 12.5px;
+  color: #fca5a5;
+}
+.ys-modal__secondary {
+  display: inline-flex;
+  margin-bottom: 12px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(244, 245, 247, 0.25);
+  background: rgba(244, 245, 247, 0.08);
+  color: rgba(244, 245, 247, 0.9);
+  font-size: 13px;
+  font-weight: 600;
+}
+.ys-modal__actions {
+  display: flex;
+  gap: 10px;
+}
+.ys-modal__cancel,
+.ys-modal__start {
+  flex: 1;
+  min-height: 44px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.ys-modal__cancel {
+  border: 1px solid rgba(244, 245, 247, 0.2);
+  background: transparent;
+  color: rgba(244, 245, 247, 0.75);
+}
+.ys-modal__start {
+  border: none;
+  background: #f97316;
+  color: #0d0e14;
+}
+.ys-modal__start:disabled {
+  opacity: 0.6;
+}
+.ys-modal__live {
+  margin-top: 12px;
+  background: none;
+  border: none;
+  color: rgba(244, 245, 247, 0.45);
+  font-size: 12px;
+  text-decoration: underline;
+}
+
+.ys-panel {
+  position: fixed;
+  left: 10px;
+  right: 10px;
+  bottom: calc(84px + env(safe-area-inset-bottom));
+  margin-inline: auto;
+  max-width: 460px;
+  max-height: 46vh;
+  overflow-y: auto;
+  z-index: 40;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: rgba(13, 14, 20, 0.92);
+  border: 1px solid rgba(249, 115, 22, 0.45);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.ys-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ys-panel__title {
+  font-size: 14px;
+  font-weight: 800;
+  color: #f4f5f7;
+}
+.ys-panel__close {
+  background: none;
+  border: none;
+  color: rgba(244, 245, 247, 0.6);
+  font-size: 14px;
+  padding: 4px;
+}
+.ys-panel__status {
+  margin: 6px 0 8px;
+  font-size: 12.5px;
+  color: rgba(244, 245, 247, 0.65);
+  min-height: 1em;
+}
+.ys-panel__stops {
+  margin: 0 0 10px;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.ys-panel__stops li {
+  font-size: 13px;
+  color: rgba(244, 245, 247, 0.9);
+}
+.ys-panel__stop-sub {
+  color: rgba(244, 245, 247, 0.5);
+  font-size: 12px;
+}
+.ys-panel__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.ys-panel__maps {
+  font-size: 12.5px;
+  color: rgba(244, 245, 247, 0.75);
+  text-decoration: underline;
+}
+.ys-panel__end {
+  min-height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(249, 115, 22, 0.5);
+  background: rgba(249, 115, 22, 0.12);
+  color: #f97316;
+  font-size: 13px;
+  font-weight: 700;
+}

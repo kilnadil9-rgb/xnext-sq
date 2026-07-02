@@ -640,6 +640,32 @@ function ListingRow({
             {' → '}
             {listing.expires_at ? new Date(listing.expires_at).toLocaleString() : '—'}
           </p>
+          {/* Partner links — review these BEFORE publishing; they only go
+              public on approved (published) listings. */}
+          {(listing.external_url || listing.ticket_url) && (
+            <p className="mt-0.5 flex flex-wrap gap-3 text-xs">
+              {listing.external_url && (
+                <a
+                  href={listing.external_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline"
+                >
+                  🔗 Website
+                </a>
+              )}
+              {listing.ticket_url && (
+                <a
+                  href={listing.ticket_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline"
+                >
+                  🎟️ Ticket link
+                </a>
+              )}
+            </p>
+          )}
         </div>
       </div>
 

@@ -224,6 +224,8 @@ export interface Quest {
   verified_location?: boolean
   /** Unique-completer count for social proof (migration 022). */
   completed_count?: number
+  /** Ticket purchase link (migration 023; Monthly Local Partner tier only). */
+  ticket_url?: string | null
   // scoring_factors and availability_windows are NOT columns on the quests table
   // (per review). They have been removed from Quest Row type to avoid phantom
   // properties. Use QuestByIdResult for getQuestById() if/when they are sourced
@@ -286,6 +288,13 @@ export interface NearbyQuest {
   verified_location?: boolean
   /** Unique-completer count for social proof (migration 022 RPC). */
   completed_count?: number
+  // Partner presentation (migration 023 RPC)
+  /** Paid package tier — lets the UI gate partner-only presentation. */
+  tier?: ListingTier | null
+  /** Approved external link (listings only; RPC returns published rows only). */
+  external_url?: string | null
+  /** Ticket link — RPC gates this to the monthly_partner tier. */
+  ticket_url?: string | null
 }
 
 // ─── SQ Domain tables (derived directly from migrations 008-013) ──────────────

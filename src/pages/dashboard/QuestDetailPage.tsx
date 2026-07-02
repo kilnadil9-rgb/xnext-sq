@@ -191,6 +191,23 @@ export function QuestDetailPage() {
         </div>
       )}
 
+      {/* Buy Tickets (023) — Monthly Local Partner listings only, and only
+          once approved (published). Never shows on regular free/user quests. */}
+      {quest.ticket_url &&
+        quest.tier === 'monthly_partner' &&
+        quest.status === 'published' && (
+          <div>
+            <a
+              href={quest.ticket_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 items-center justify-center rounded-md bg-primary px-6 text-sm font-semibold text-primary-foreground hover:opacity-90"
+            >
+              🎟️ Buy Tickets
+            </a>
+          </div>
+        )}
+
       {/* External URL */}
       {quest.external_url && (
         <div>

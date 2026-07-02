@@ -22,6 +22,21 @@ export function googleMapsDirectionsUrl(dest: LatLng): string {
   return `https://www.google.com/maps/dir/?api=1&destination=${dest.lat},${dest.lng}&travelmode=driving`
 }
 
+/**
+ * Multi-stop Google Maps deep link (Yard Sale Route fallback): all stops in
+ * order, last stop as the destination.
+ */
+export function googleMapsMultiStopUrl(origin: LatLng, stops: LatLng[]): string {
+  if (stops.length === 0) return googleMapsDirectionsUrl(origin)
+  const dest = stops[stops.length - 1]
+  const waypoints = stops
+    .slice(0, -1)
+    .map((s) => `${s.lat},${s.lng}`)
+    .join('|')
+  const wp = waypoints ? `&waypoints=${encodeURIComponent(waypoints)}` : ''
+  return `https://www.google.com/maps/dir/?api=1&origin=${origin.lat},${origin.lng}&destination=${dest.lat},${dest.lng}${wp}&travelmode=driving`
+}
+
 export type RouteStatus = 'idle' | 'loading' | 'ok' | 'denied' | 'error'
 
 export interface RouteResult {
@@ -130,6 +145,130 @@ export function RouteLayer({
     // Re-run only when the destination (or map/library) changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [map, routesLib, destination.lat, destination.lng])
+
+  return null
+}
+
+// ── Yard Sale Route (multi-stop) ──────────────────────────────────────────────
+
+interface MultiStopRouteLayerProps {
+  /** Origin = the user's current location. */
+  origin: LatLng
+  /** Ordered stops (pre-ordered nearest-neighbor; Google refines the middle). */
+  stops: LatLng[]
+  onStatus?: (status: RouteStatus) => void
+  /** Totals summed across all legs. */
+  onResult?: (result: RouteResult | null) => void
+  /**
+   * Google's optimized visiting order for stops[0..n-2] (indices into `stops`
+   * minus the final destination). Lets the caller reorder its stop LIST
+   * without changing the props (which would re-request the route).
+   */
+  onOptimizedOrder?: (order: number[]) => void
+}
+
+/**
+ * Multi-stop driving route for Yard Sale Route Mode: origin → every stop,
+ * with Google optimizing the middle waypoints (last stop stays the finale).
+ * Same rendering + failure semantics as RouteLayer; unmount clears the line.
+ */
+export function MultiStopRouteLayer({
+  origin,
+  stops,
+  onStatus,
+  onResult,
+  onOptimizedOrder,
+}: MultiStopRouteLayerProps) {
+  const map = useMap()
+  const routesLib = useMapsLibrary('routes')
+  const rendererRef = useRef<google.maps.DirectionsRenderer | null>(null)
+
+  const originRef = useRef(origin)
+  originRef.current = origin
+  const onStatusRef = useRef(onStatus)
+  onStatusRef.current = onStatus
+  const onResultRef = useRef(onResult)
+  onResultRef.current = onResult
+  const onOrderRef = useRef(onOptimizedOrder)
+  onOrderRef.current = onOptimizedOrder
+
+  // One request per stop-set: key on the coordinates so GPS ticks (origin
+  // updates) and unrelated re-renders don't refetch.
+  const stopsKey = stops.map((s) => `${s.lat},${s.lng}`).join(';')
+
+  useEffect(() => {
+    if (!map || !routesLib || stops.length === 0) return
+    let cancelled = false
+
+    const service = new routesLib.DirectionsService()
+    const renderer = new routesLib.DirectionsRenderer({
+      map,
+      suppressMarkers: true, // quest pins already mark the stops
+      preserveViewport: false,
+      polylineOptions: {
+        strokeColor: '#f97316',
+        strokeOpacity: 0.9,
+        strokeWeight: 5,
+      },
+    })
+    rendererRef.current = renderer
+
+    onStatusRef.current?.('loading')
+    onResultRef.current?.(null)
+
+    const destination = stops[stops.length - 1]
+    const waypoints = stops.slice(0, -1).map((s) => ({
+      location: new google.maps.LatLng(s.lat, s.lng),
+      stopover: true,
+    }))
+
+    service.route(
+      {
+        origin: originRef.current,
+        destination,
+        waypoints,
+        optimizeWaypoints: true,
+        travelMode: google.maps.TravelMode.DRIVING,
+      },
+      (result, status) => {
+        if (cancelled) return
+        if (status === 'OK' && result) {
+          renderer.setDirections(result)
+          const route = result.routes[0]
+          const legs = route?.legs ?? []
+          const distanceMeters = legs.reduce((sum, l) => sum + (l.distance?.value ?? 0), 0)
+          const durationSeconds = legs.reduce((sum, l) => sum + (l.duration?.value ?? 0), 0)
+          const minutes = Math.round(durationSeconds / 60)
+          onResultRef.current?.({
+            durationText:
+              minutes >= 60
+                ? `${Math.floor(minutes / 60)} hr ${minutes % 60} min`
+                : `${minutes} min`,
+            distanceText: `${(distanceMeters / 1609.34).toFixed(1)} mi`,
+            durationSeconds,
+            distanceMeters,
+          })
+          if (route?.waypoint_order) onOrderRef.current?.(route.waypoint_order)
+          onStatusRef.current?.('ok')
+        } else if (status === 'REQUEST_DENIED') {
+          onStatusRef.current?.('denied')
+          onResultRef.current?.(null)
+        } else {
+          onStatusRef.current?.('error')
+          onResultRef.current?.(null)
+        }
+      },
+    )
+
+    return () => {
+      cancelled = true
+      if (rendererRef.current) {
+        rendererRef.current.setMap(null)
+        rendererRef.current = null
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, routesLib, stopsKey])
 
   return null
 }

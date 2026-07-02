@@ -52,8 +52,28 @@ export const LISTING_PACKAGES: ListingPackage[] = [
   { tier: 'local_event', label: 'Local Event', priceLabel: '$4.99', priceUsd: 4.99, durationHours: 72, isFeatured: false, blurb: 'Visible up to 3 days', stripePriceId: 'price_xnext_localevent_499' },
   { tier: 'business_spotlight', label: 'Business Spotlight', priceLabel: '$9.99', priceUsd: 9.99, durationHours: 168, isFeatured: false, blurb: 'Visible up to 7 days', stripePriceId: 'price_xnext_spotlight_999' },
   { tier: 'featured_business', label: 'Featured Business', priceLabel: '$19.99', priceUsd: 19.99, durationHours: 336, isFeatured: true, blurb: '14 days · ranks higher', stripePriceId: 'price_xnext_featured_1999' },
-  { tier: 'monthly_partner', label: 'Monthly Local Partner', priceLabel: '$49.99/mo', priceUsd: 49.99, durationHours: 720, isFeatured: true, blurb: 'Recurring visibility (30 days)', stripePriceId: 'price_xnext_partner_mo_4999' },
+  { tier: 'monthly_partner', label: 'Monthly Local Partner', priceLabel: '$49.99/mo', priceUsd: 49.99, durationHours: 720, isFeatured: true, blurb: '30 days · 3 photos · tickets + website link', stripePriceId: 'price_xnext_partner_mo_4999' },
 ]
+
+// ── Monthly Local Partner perks (venues, concerts, race events, attractions) ─
+// Partner listings get richer presentation; everyone else keeps the basic flow.
+export const PARTNER_TIER: ListingTier = 'monthly_partner'
+export const PARTNER_MAX_PHOTOS = 3
+export const BASIC_MAX_PHOTOS = 1
+
+export function isPartnerTier(tier: ListingTier | null | undefined): boolean {
+  return tier === PARTNER_TIER
+}
+
+/** Loose http(s) URL check for partner links (external site / tickets). */
+export function isValidHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value)
+    return u.protocol === 'https:' || u.protocol === 'http:'
+  } catch {
+    return false
+  }
+}
 
 export function packageForTier(tier: ListingTier): ListingPackage | undefined {
   return LISTING_PACKAGES.find((p) => p.tier === tier)
@@ -185,6 +205,9 @@ interface ListingInsertCore {
   contact_email: string | null
   contact_phone: string | null
   media_urls: string[]
+  /** Partner-only links (023). Both null for basic tiers + admin listings. */
+  external_url: string | null
+  ticket_url: string | null
   /** metadata.source provenance tag, e.g. 'admin_listing' | 'paid_listing'. */
   source: string
 }
@@ -206,7 +229,7 @@ function buildListingInsert(core: ListingInsertCore) {
     is_sponsored: false,
     sponsor_id: null,
     media_urls: core.media_urls,
-    external_url: null,
+    external_url: core.external_url,
     status: core.status,
     published_at: core.published_at,
     expires_at: core.expires_at,
@@ -223,6 +246,8 @@ function buildListingInsert(core: ListingInsertCore) {
     business_name: core.business_name,
     contact_email: core.contact_email,
     contact_phone: core.contact_phone,
+    // Partner-only ticket link (migration 023); RPC gates display to the tier.
+    ticket_url: core.ticket_url,
   }
 }
 
@@ -239,8 +264,12 @@ export function listingBadge(q: {
   listing_type?: ListingType | null
   is_featured?: boolean
   expires_at?: string | null
+  tier?: ListingTier | null
 }): ListingBadge | null {
   if (!q.listing_type) return null
+  // Monthly Local Partner (venues, concerts, major events) outranks the
+  // generic featured label — stronger event/venue presentation.
+  if (isPartnerTier(q.tier)) return { label: 'Local Partner', kind: 'featured' }
   if (q.is_featured) return { label: 'Featured Nearby', kind: 'featured' }
 
   const hoursLeft = q.expires_at
@@ -274,6 +303,10 @@ export interface CreateListingInput {
   contact_email?: string | null
   contact_phone?: string | null
   media_urls?: string[]
+  /** Monthly Local Partner only: approved external link (venue/event site). */
+  external_url?: string | null
+  /** Monthly Local Partner only: ticket purchase link ("Buy Tickets"). */
+  ticket_url?: string | null
 }
 
 /**
@@ -333,6 +366,26 @@ export const listingService = {
     }
     const expiresAt = new Date(startsAt.getTime() + pkg.durationHours * 3_600_000)
 
+    // ── Monthly Local Partner perks — everyone else keeps the basic flow ────
+    const partner = isPartnerTier(input.tier)
+    const maxPhotos = partner ? PARTNER_MAX_PHOTOS : BASIC_MAX_PHOTOS
+    const mediaUrls = (input.media_urls ?? []).slice(0, maxPhotos)
+
+    const externalUrl = partner ? input.external_url?.trim() || null : null
+    const ticketUrl = partner ? input.ticket_url?.trim() || null : null
+    if (!partner && (input.external_url?.trim() || input.ticket_url?.trim())) {
+      return {
+        data: null,
+        error: 'External and ticket links are a Monthly Local Partner perk — choose that package to include them.',
+      }
+    }
+    if (externalUrl && !isValidHttpUrl(externalUrl)) {
+      return { data: null, error: 'External link must be a valid http(s) URL.' }
+    }
+    if (ticketUrl && !isValidHttpUrl(ticketUrl)) {
+      return { data: null, error: 'Ticket link must be a valid http(s) URL.' }
+    }
+
     // Built via the shared core so the paid row shape stays in lockstep with
     // admin listings — only status/payment/source differ below.
     const insertPayload = buildListingInsert({
@@ -355,7 +408,11 @@ export const listingService = {
       business_name: input.business_name?.trim() || null,
       contact_email: input.contact_email?.trim() || null,
       contact_phone: input.contact_phone?.trim() || null,
-      media_urls: input.media_urls ?? [],
+      media_urls: mediaUrls,
+      // Links ride along on the pending_review row, but only ever DISPLAY
+      // after admin approval (RPC returns published rows only).
+      external_url: externalUrl,
+      ticket_url: ticketUrl,
       source: 'paid_listing',
     })
 
@@ -441,6 +498,8 @@ export const listingService = {
       contact_email: null,
       contact_phone: null,
       media_urls: input.media_urls ?? [],
+      external_url: null,
+      ticket_url: null,
       source: 'admin_listing',
     })
 

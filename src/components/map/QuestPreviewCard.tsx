@@ -540,6 +540,15 @@ export function QuestPreviewCard({
           }}
         />
       )}
+      {/* Partner presentation: extra photos (up to 3 total) as a small strip
+          under the hero. Only renders when a listing actually has them. */}
+      {Array.isArray(quest.media_urls) && quest.media_urls.length > 1 && (
+        <div className="quest-sheet__gallery">
+          {quest.media_urls.slice(1, 3).map((url) => (
+            <img key={url} src={url} alt="" loading="lazy" />
+          ))}
+        </div>
+      )}
 
       {badge && (
         <span className={`quest-listing-badge quest-listing-badge--${badge.kind}`}>
@@ -589,6 +598,33 @@ export function QuestPreviewCard({
         <p className="quest-sheet__description quest-sheet__description--full">
           {quest.description}
         </p>
+      )}
+      {/* Partner links (023): the RPC only returns these on APPROVED published
+          listings, and ticket_url only for the Monthly Local Partner tier —
+          they can never appear on regular free/user quests. */}
+      {(quest.ticket_url || quest.external_url) && (
+        <div className="quest-sheet__actions quest-sheet__actions--compact">
+          {quest.ticket_url && (
+            <a
+              className="quest-sheet__primary quest-sheet__tickets"
+              href={quest.ticket_url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              🎟️ Buy Tickets
+            </a>
+          )}
+          {quest.external_url && (
+            <a
+              className="quest-sheet__weblink"
+              href={quest.external_url}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Visit website ↗
+            </a>
+          )}
+        </div>
       )}
       {isDone && (
         <div className="quest-sheet__completed-banner">

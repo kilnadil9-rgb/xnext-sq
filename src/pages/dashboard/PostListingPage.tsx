@@ -4,6 +4,9 @@ import {
   listingService,
   LISTING_TYPES,
   LISTING_PACKAGES,
+  PARTNER_MAX_PHOTOS,
+  isPartnerTier,
+  isValidHttpUrl,
 } from '../../services/listingService'
 import type { ListingType, ListingTier } from '../../lib/supabase/types'
 import { LocationPickerMap } from '../../components/map/LocationPickerMap'
@@ -34,10 +37,30 @@ export function PostListingPage() {
   const [contactEmail, setContactEmail] = useState('')
   const [contactPhone, setContactPhone] = useState('')
 
+  // Monthly Local Partner perks (photos + links). Hidden for basic tiers.
+  const [photos, setPhotos] = useState<File[]>([])
+  const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
+  const [externalUrl, setExternalUrl] = useState('')
+  const [ticketUrl, setTicketUrl] = useState('')
+
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const pkg = LISTING_PACKAGES.find((p) => p.tier === tier)!
+  const partner = isPartnerTier(tier)
+
+  const handleAddPhotos = (files: FileList | null) => {
+    if (!files) return
+    const next = [...photos, ...Array.from(files)].slice(0, PARTNER_MAX_PHOTOS)
+    setPhotos(next)
+    setPhotoPreviews(next.map((f) => URL.createObjectURL(f)))
+  }
+
+  const handleRemovePhoto = (index: number) => {
+    const next = photos.filter((_, i) => i !== index)
+    setPhotos(next)
+    setPhotoPreviews(next.map((f) => URL.createObjectURL(f)))
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -51,7 +74,31 @@ export function PostListingPage() {
       setError('Choose when it starts.')
       return
     }
+    // Partner link sanity checks before any upload/insert work.
+    if (partner && externalUrl.trim() && !isValidHttpUrl(externalUrl.trim())) {
+      setError('External link must be a valid http(s) URL, e.g. https://yourvenue.com')
+      return
+    }
+    if (partner && ticketUrl.trim() && !isValidHttpUrl(ticketUrl.trim())) {
+      setError('Ticket link must be a valid http(s) URL, e.g. https://tickets.example.com/event')
+      return
+    }
     setSubmitting(true)
+
+    // Upload partner photos first (up to 3); fail fast on any upload error.
+    const mediaUrls: string[] = []
+    if (partner) {
+      for (const file of photos.slice(0, PARTNER_MAX_PHOTOS)) {
+        const up = await listingService.uploadListingImage(file)
+        if (up.error || !up.data) {
+          setSubmitting(false)
+          setError(up.error ?? 'Photo upload failed.')
+          return
+        }
+        mediaUrls.push(up.data)
+      }
+    }
+
     const result = await listingService.createListing({
       listing_type: listingType,
       tier,
@@ -63,6 +110,9 @@ export function PostListingPage() {
       business_name: businessName || null,
       contact_email: contactEmail || null,
       contact_phone: contactPhone || null,
+      media_urls: mediaUrls,
+      external_url: partner ? externalUrl.trim() || null : null,
+      ticket_url: partner ? ticketUrl.trim() || null : null,
     })
     if (result.error || !result.data) {
       setSubmitting(false)
@@ -188,6 +238,69 @@ export function PostListingPage() {
             ))}
           </div>
         </div>
+
+        {/* Monthly Local Partner perks — venues, concerts, race events.
+            Basic tiers keep the simple flow (no photos, no links). */}
+        {partner && (
+          <div className="flex flex-col gap-4 rounded-lg border border-primary/40 bg-primary/5 p-4">
+            <p className="text-sm font-semibold text-foreground">
+              ⭐ Local Partner extras
+            </p>
+
+            <div>
+              <span className={labelCls}>Photos (up to {PARTNER_MAX_PHOTOS})</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                disabled={photos.length >= PARTNER_MAX_PHOTOS}
+                onChange={(e) => {
+                  handleAddPhotos(e.target.files)
+                  e.target.value = ''
+                }}
+                className="block w-full text-sm text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground"
+              />
+              {photoPreviews.length > 0 && (
+                <div className="mt-2 flex gap-2">
+                  {photoPreviews.map((src, i) => (
+                    <div key={src} className="relative">
+                      <img
+                        src={src}
+                        alt={`Listing photo ${i + 1}`}
+                        className="h-20 w-20 rounded-md object-cover"
+                      />
+                      <button
+                        type="button"
+                        aria-label={`Remove photo ${i + 1}`}
+                        onClick={() => handleRemovePhoto(i)}
+                        className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-black/80 text-[10px] text-white"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="l-external" className={labelCls}>Website / event link</label>
+              <input id="l-external" type="url" className={inputCls} value={externalUrl}
+                placeholder="https://yourvenue.com/event"
+                onChange={(e) => setExternalUrl(e.target.value)} />
+            </div>
+
+            <div>
+              <label htmlFor="l-ticket" className={labelCls}>Ticket purchase link</label>
+              <input id="l-ticket" type="url" className={inputCls} value={ticketUrl}
+                placeholder="https://tickets.example.com/your-event"
+                onChange={(e) => setTicketUrl(e.target.value)} />
+              <p className="mt-1 text-xs text-muted-foreground">
+                Shown as a "Buy Tickets" button. Links only appear after admin approval.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Contact (for business tiers) */}
         <div className="grid gap-4 sm:grid-cols-2">

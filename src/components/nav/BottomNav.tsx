@@ -27,9 +27,11 @@ export function BottomNav({ onNext, onOpenSheet }: BottomNavProps) {
   const handleNextPointerDown = () => {
     const timer = window.setTimeout(() => {
       if (import.meta.env.DEV) {
-        console.log('[NEXT] Long press detected - entering Live Mode')
+        console.log('[NEXT] Long press detected - opening quick actions (Yard Sale Route / Live Mode)')
       }
-      window.dispatchEvent(new CustomEvent('xnext-live-enter'))
+      // Glass quick-action popup (MapScreen listens): Yard Sale Route is the
+      // hero action; Live Mode stays reachable as the secondary action.
+      window.dispatchEvent(new CustomEvent('xnext-longpress'))
     }, 600)
     setLongPressTimer(timer)
   }
@@ -75,7 +77,7 @@ export function BottomNav({ onNext, onOpenSheet }: BottomNavProps) {
             onPointerUp={handleNextPointerUp}
             onPointerLeave={handleNextPointerUp}
             className="relative w-14 h-14 rounded-full bg-[#f97316] text-black flex flex-col items-center justify-center active:scale-90 transition-transform animate-glow-breathe select-none touch-none"
-            aria-label="NEXT — advance to next experience (tap) or Live Mode (hold)"
+            aria-label="NEXT — advance to next experience (tap) or quick actions (hold)"
           >
             {/* Inner amber ring */}
             <div className="absolute inset-[3px] rounded-full border border-[#fde047]/50 pointer-events-none" />
