@@ -355,6 +355,19 @@ export type DreamListItemWithQuest = DreamList & {
   } | null
 }
 
+/**
+ * Explorer Notes quick tags (migration 026) — one-tap structured knowledge
+ * for the Experience Graph. All optional; absent keys mean "not answered".
+ */
+export interface ExplorerTags {
+  difficulty?: 'easy' | 'moderate' | 'hard'
+  crowds?: 'quiet' | 'moderate' | 'busy'
+  parking?: 'easy' | 'limited' | 'difficult'
+  family_friendly?: boolean
+  dog_friendly?: boolean
+  worth_returning?: 'absolutely' | 'maybe' | 'probably_not'
+}
+
 export interface QuestCompletion {
   id: string
   user_id: string
@@ -365,6 +378,10 @@ export interface QuestCompletion {
   media_urls: Json
   is_public: boolean
   sq_score_at_completion: number | null
+  /** One short tip for the next explorer (migration 026; max 9 words). */
+  explorer_note?: string | null
+  /** One-tap quick tags (migration 026). */
+  explorer_tags?: ExplorerTags
 }
 
 export interface QuestChain {

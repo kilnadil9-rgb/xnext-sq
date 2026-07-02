@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { dreamListService } from '../../services/dreamListService'
-import { questCompletionService } from '../../services/questCompletionService'
+import {
+  questCompletionService,
+  explorerNoteWordCount,
+  EXPLORER_NOTE_MAX_WORDS,
+} from '../../services/questCompletionService'
+import type { ExplorerTags } from '../../lib/supabase/types'
 import { formatDistance, haversineMeters } from '../../lib/distance'
 import type { RankedQuest } from '../../lib/adventureRadar'
 import type { LatLng } from './types'
@@ -83,6 +88,14 @@ export function QuestPreviewCard({
   const [celebrating, setCelebrating] = useState(false)
   const [xpEarned, setXpEarned] = useState(0)
 
+  // Explorer Note (026): one 9-word tip + one-tap tags, captured in the
+  // celebration. Experience Graph input — not a public review.
+  const [completionId, setCompletionId] = useState<string | null>(null)
+  const [exNote, setExNote] = useState('')
+  const [exTags, setExTags] = useState<ExplorerTags>({})
+  const [exState, setExState] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [exError, setExError] = useState<string | null>(null)
+
   // Share (XNEXT Share Phase): lightweight confirmation toast, no error UI —
   // cancelled/failed shares just fall through silently (never blocks the user).
   const [shareToast, setShareToast] = useState<string | null>(null)
@@ -97,6 +110,11 @@ export function QuestPreviewCard({
     setSaveError(null)
     setShowCompleteForm(false)
     setCelebrating(false)
+    setCompletionId(null)
+    setExNote('')
+    setExTags({})
+    setExState('idle')
+    setExError(null)
 
     dreamListService.getDreamListItemByQuestId(quest.id).then((result) => {
       if (cancelled) return
@@ -173,9 +191,42 @@ export function QuestPreviewCard({
       return
     }
     setXpEarned(xpFor(quest))
+    setCompletionId(result.data?.id ?? null)
     setCompletionState('done')
     setShowCompleteForm(false)
     setCelebrating(true)
+  }
+
+  // Explorer Note helpers — tap a chip again to clear it.
+  const toggleTag = <K extends keyof ExplorerTags>(key: K, value: ExplorerTags[K]) => {
+    setExTags((prev) => {
+      if (prev[key] === value) {
+        const next = { ...prev }
+        delete next[key]
+        return next
+      }
+      return { ...prev, [key]: value }
+    })
+  }
+
+  const exWords = explorerNoteWordCount(exNote)
+  const exOverLimit = exWords > EXPLORER_NOTE_MAX_WORDS
+  const exHasContent = exNote.trim().length > 0 || Object.keys(exTags).length > 0
+
+  const handleSaveExplorerNote = async () => {
+    if (!completionId) return
+    setExState('saving')
+    setExError(null)
+    const res = await questCompletionService.addExplorerNote(completionId, {
+      note: exNote,
+      tags: exTags,
+    })
+    if (res.error) {
+      setExState('idle')
+      setExError(res.error)
+      return
+    }
+    setExState('saved')
   }
 
   const handleNextFromCelebration = () => {
@@ -233,6 +284,111 @@ export function QuestPreviewCard({
         <p className="quest-sheet__meta" style={{ textAlign: 'center' }}>
           “{quest.title}” is now in your Memories.
         </p>
+
+        {/* ── Explorer Note (026): help the next explorer. One note, 9 words,
+            plus one-tap tags. Skippable — never blocks the celebration. ── */}
+        {completionId && exState !== 'saved' && (
+          <div className="explorer-note">
+            <p className="explorer-note__title">Now help the next explorer</p>
+            <p className="explorer-note__hint">
+              One short note — the single most useful thing you learned.
+            </p>
+            <input
+              className="explorer-note__input"
+              type="text"
+              value={exNote}
+              maxLength={100}
+              placeholder='e.g. "Parking fills after noon"'
+              onChange={(e) => setExNote(e.target.value)}
+              aria-label={`Explorer note, maximum ${EXPLORER_NOTE_MAX_WORDS} words`}
+            />
+            <p className={`explorer-note__count${exOverLimit ? ' is-over' : ''}`}>
+              {exWords}/{EXPLORER_NOTE_MAX_WORDS} words
+            </p>
+
+            <div className="explorer-note__tags">
+              {(
+                [
+                  { key: 'difficulty', label: 'Difficulty', options: [
+                    { v: 'easy', t: 'Easy' }, { v: 'moderate', t: 'Moderate' }, { v: 'hard', t: 'Hard' },
+                  ] },
+                  { key: 'crowds', label: 'Crowds', options: [
+                    { v: 'quiet', t: 'Quiet' }, { v: 'moderate', t: 'Moderate' }, { v: 'busy', t: 'Busy' },
+                  ] },
+                  { key: 'parking', label: 'Parking', options: [
+                    { v: 'easy', t: 'Easy' }, { v: 'limited', t: 'Limited' }, { v: 'difficult', t: 'Difficult' },
+                  ] },
+                  { key: 'worth_returning', label: 'Worth returning?', options: [
+                    { v: 'absolutely', t: 'Absolutely' }, { v: 'maybe', t: 'Maybe' }, { v: 'probably_not', t: 'Probably not' },
+                  ] },
+                ] as const
+              ).map((group) => (
+                <div key={group.key} className="explorer-note__group" role="group" aria-label={group.label}>
+                  <span className="explorer-note__group-label">{group.label}</span>
+                  {group.options.map((o) => (
+                    <button
+                      key={o.v}
+                      type="button"
+                      aria-pressed={exTags[group.key] === o.v}
+                      className={`explorer-note__chip${exTags[group.key] === o.v ? ' is-on' : ''}`}
+                      onClick={() => toggleTag(group.key, o.v)}
+                    >
+                      {o.t}
+                    </button>
+                  ))}
+                </div>
+              ))}
+              <div className="explorer-note__group" role="group" aria-label="Family friendly">
+                <span className="explorer-note__group-label">Family friendly</span>
+                {([{ v: true, t: 'Yes' }, { v: false, t: 'No' }] as const).map((o) => (
+                  <button
+                    key={String(o.v)}
+                    type="button"
+                    aria-pressed={exTags.family_friendly === o.v}
+                    className={`explorer-note__chip${exTags.family_friendly === o.v ? ' is-on' : ''}`}
+                    onClick={() => toggleTag('family_friendly', o.v)}
+                  >
+                    {o.t}
+                  </button>
+                ))}
+              </div>
+              <div className="explorer-note__group" role="group" aria-label="Dog friendly">
+                <span className="explorer-note__group-label">Dog friendly</span>
+                {([{ v: true, t: 'Yes' }, { v: false, t: 'No' }] as const).map((o) => (
+                  <button
+                    key={String(o.v)}
+                    type="button"
+                    aria-pressed={exTags.dog_friendly === o.v}
+                    className={`explorer-note__chip${exTags.dog_friendly === o.v ? ' is-on' : ''}`}
+                    onClick={() => toggleTag('dog_friendly', o.v)}
+                  >
+                    {o.t}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {exError && (
+              <p className="quest-sheet__error" role="alert">{exError}</p>
+            )}
+            <div className="explorer-note__actions">
+              <button
+                type="button"
+                className="quest-sheet__primary"
+                disabled={!exHasContent || exOverLimit || exState === 'saving'}
+                onClick={handleSaveExplorerNote}
+              >
+                {exState === 'saving' ? 'Saving…' : 'Share note'}
+              </button>
+            </div>
+          </div>
+        )}
+        {exState === 'saved' && (
+          <p className="explorer-note__thanks" role="status">
+            🧭 Noted — the next explorer thanks you.
+          </p>
+        )}
+
         <div className="quest-sheet__actions">
           <Link to="/dashboard/completed" className="quest-sheet__view-memory">
             View in Memories

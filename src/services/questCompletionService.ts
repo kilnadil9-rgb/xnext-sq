@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase/client'
-import type { QuestCompletion, ExperienceClass } from '../lib/supabase/types'
+import type { QuestCompletion, ExperienceClass, ExplorerTags } from '../lib/supabase/types'
 import type { ServiceResult } from '../lib/serviceUtils'
 import { extractMessage } from '../lib/serviceUtils'
 import { dreamListService } from './dreamListService'
@@ -18,6 +18,23 @@ export interface CompleteQuestOptions {
 export interface GetMyCompletionsOptions {
   limit?: number
   offset?: number
+}
+
+// ── Explorer Notes (migration 026) ───────────────────────────────────────────
+
+/** Max words in an Explorer Note — one observation, high signal. */
+export const EXPLORER_NOTE_MAX_WORDS = 9
+
+/** Count words the same way everywhere (UI counter + service validation). */
+export function explorerNoteWordCount(note: string): number {
+  const trimmed = note.trim()
+  return trimmed === '' ? 0 : trimmed.split(/\s+/).length
+}
+
+export interface ExplorerNoteInput {
+  /** One short tip, max 9 words. Empty/omitted = tags only. */
+  note?: string | null
+  tags?: ExplorerTags
 }
 
 /** Completion row joined with preview fields from the quest. */
@@ -79,6 +96,43 @@ export const questCompletionService = {
       void dreamListService.markDreamListItemCompleted(dreamListId)
     }
 
+    return { data, error: null }
+  },
+
+  /**
+   * Attach an Explorer Note (one short tip + one-tap tags) to a completion
+   * the current user owns. Max 9 words — this is Experience Graph input,
+   * not a review. No-op error when both note and tags are empty.
+   */
+  async addExplorerNote(
+    completionId: string,
+    input: ExplorerNoteInput,
+  ): Promise<ServiceResult<QuestCompletion>> {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { data: null, error: 'Not authenticated' }
+
+    const note = input.note?.trim() || null
+    const tags = input.tags ?? {}
+    const hasTags = Object.keys(tags).length > 0
+    if (!note && !hasTags) {
+      return { data: null, error: 'Add a short note or tap a tag first.' }
+    }
+    if (note && explorerNoteWordCount(note) > EXPLORER_NOTE_MAX_WORDS) {
+      return {
+        data: null,
+        error: `Keep it to ${EXPLORER_NOTE_MAX_WORDS} words — one observation, high signal.`,
+      }
+    }
+
+    const { data, error } = await supabase
+      .from('quest_completions')
+      .update({ explorer_note: note, explorer_tags: tags } as never)
+      .eq('id', completionId)
+      .eq('user_id', user.id) // belt + suspenders on top of owner RLS
+      .select()
+      .single()
+
+    if (error) return { data: null, error: extractMessage(error) }
     return { data, error: null }
   },
 
