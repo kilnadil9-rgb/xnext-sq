@@ -564,6 +564,14 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
     return () => window.removeEventListener('xnext-select-quest', handler)
   }, [displayedQuests, handleSelectQuest])
 
+  // Native shell (RC2): on Android app resume, refresh the radar so listings
+  // that expired/appeared while backgrounded are correct. No-op on web.
+  useEffect(() => {
+    const handler = () => setRefreshKey((k) => k + 1)
+    window.addEventListener('xnext-app-resume', handler)
+    return () => window.removeEventListener('xnext-app-resume', handler)
+  }, [])
+
   // Immediate visibility: when a discovery is created, refetch the radar so the
   // new experience appears on the map right away.
   useEffect(() => {
