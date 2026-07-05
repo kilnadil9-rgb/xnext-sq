@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase/client'
 import type { QuestCompletion, ExperienceClass, ExplorerTags } from '../lib/supabase/types'
 import type { ServiceResult } from '../lib/serviceUtils'
 import { extractMessage } from '../lib/serviceUtils'
+import { EXPLORER_NOTE_MAX_WORDS, explorerNoteWordCount } from '../lib/trust'
 import { dreamListService } from './dreamListService'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -21,15 +22,9 @@ export interface GetMyCompletionsOptions {
 }
 
 // ── Explorer Notes (migration 026) ───────────────────────────────────────────
-
-/** Max words in an Explorer Note — one observation, high signal. */
-export const EXPLORER_NOTE_MAX_WORDS = 9
-
-/** Count words the same way everywhere (UI counter + service validation). */
-export function explorerNoteWordCount(note: string): number {
-  const trimmed = note.trim()
-  return trimmed === '' ? 0 : trimmed.split(/\s+/).length
-}
+// Pure helpers live in lib/trust (unit-testable without the Supabase client);
+// re-exported here so existing imports keep working unchanged.
+export { EXPLORER_NOTE_MAX_WORDS, explorerNoteWordCount } from '../lib/trust'
 
 export interface ExplorerNoteInput {
   /** One short tip, max 9 words. Empty/omitted = tags only. */

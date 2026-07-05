@@ -28,3 +28,4 @@ dist-ssr
 
 # Supabase local/temp
 supabase/.temp/
+.test-dist

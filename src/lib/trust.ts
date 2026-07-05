@@ -24,3 +24,14 @@ export function explorerProofLabel(quest: ProofSource): string | null {
     ? `${n} ${noun} verified this location`
     : `${n} ${noun} completed this`
 }
+
+// ── Explorer Notes (026) — pure helpers ──────────────────────────────────────
+
+/** Max words in an Explorer Note — one observation, high signal. */
+export const EXPLORER_NOTE_MAX_WORDS = 9
+
+/** Count words the same way everywhere (UI counter + service validation). */
+export function explorerNoteWordCount(note: string): number {
+  const trimmed = note.trim()
+  return trimmed === '' ? 0 : trimmed.split(/\s+/).length
+}
