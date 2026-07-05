@@ -2,6 +2,7 @@ import { lazy, Suspense, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { LoadingState } from './components/ui/LoadingState'
+import { OfflineBanner } from './components/ui/OfflineBanner'
 
 // ── Layouts & guards ──────────────────────────────────────────────────────────
 import { ProtectedRoute } from './components/auth/ProtectedRoute'
@@ -56,6 +57,7 @@ export function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <OfflineBanner />
         <Routes>
           {/* ── Public: root redirect ──────────────────────────────────── */}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
