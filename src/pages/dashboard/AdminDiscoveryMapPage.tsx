@@ -18,6 +18,11 @@ import {
 } from '../../services/listingService'
 import { MAPS_API_KEY, MAPS_MAP_ID, XNEXT_MAP_STYLES } from '../../components/map/mapsConfig'
 import { MapErrorBoundary } from '../../components/map/MapErrorBoundary'
+import {
+  findDuplicates,
+  rapidSubmitters,
+  stalePending,
+} from '../../lib/moderationInsights'
 import { VerifiedBadge } from '../../components/ui/VerifiedBadge'
 
 /**
@@ -360,6 +365,16 @@ export function AdminDiscoveryMapPage() {
   )
 
   const markets = useMemo(() => buildMarkets(listings), [listings])
+
+  // Moderation insights (RC6) — read-only heuristics, no production writes.
+  const insights = useMemo(
+    () => ({
+      duplicates: findDuplicates(listings),
+      stale: stalePending(listings),
+      rapid: rapidSubmitters(listings),
+    }),
+    [listings],
+  )
   const searchResults = useMemo(
     () => searchListings(listings, search),
     [listings, search],
@@ -772,6 +787,82 @@ export function AdminDiscoveryMapPage() {
                   </li>
                 ))}
               </ul>
+            </div>
+          )}
+
+          {/* Moderation insights (RC6): duplicates, stale queue, rapid submitters.
+              Heuristics only — humans decide; nothing here writes anywhere. */}
+          {(insights.duplicates.length > 0 ||
+            insights.stale.length > 0 ||
+            insights.rapid.length > 0) && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-2.5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-amber-300">
+                Insights
+              </p>
+              {insights.stale.length > 0 && (
+                <div className="mt-1">
+                  <p className="text-[11px] font-semibold text-foreground">
+                    ⏳ Stale pending ({insights.stale.length} &gt; 7 days)
+                  </p>
+                  <ul>
+                    {insights.stale.slice(0, 5).map((r) => (
+                      <li key={r.id}>
+                        <button
+                          type="button"
+                          className="w-full truncate rounded px-1 py-0.5 text-left text-[11px] text-muted-foreground hover:bg-accent"
+                          onClick={() => {
+                            const full = listings.find((l) => l.id === r.id)
+                            if (full) focusListing(full)
+                          }}
+                        >
+                          {r.title} · {new Date(r.created_at).toLocaleDateString()}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {insights.duplicates.length > 0 && (
+                <div className="mt-1">
+                  <p className="text-[11px] font-semibold text-foreground">
+                    👯 Possible duplicates ({insights.duplicates.length} groups)
+                  </p>
+                  <ul>
+                    {insights.duplicates.slice(0, 4).map((g) => (
+                      <li key={g.key}>
+                        <button
+                          type="button"
+                          className="w-full truncate rounded px-1 py-0.5 text-left text-[11px] text-muted-foreground hover:bg-accent"
+                          onClick={() => {
+                            const full = listings.find((l) => l.id === g.rows[0].id)
+                            if (full) focusListing(full)
+                          }}
+                        >
+                          “{g.rows[0].title}” × {g.rows.length}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {insights.rapid.length > 0 && (
+                <div className="mt-1">
+                  <p className="text-[11px] font-semibold text-foreground">
+                    ⚡ Rapid submitters ({insights.rapid.length})
+                  </p>
+                  <ul>
+                    {insights.rapid.slice(0, 3).map((u) => (
+                      <li
+                        key={u.created_by}
+                        className="truncate px-1 py-0.5 text-[11px] text-muted-foreground"
+                        title={u.created_by}
+                      >
+                        {u.count} submissions in 24h · creator {u.created_by.slice(0, 8)}…
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
 
