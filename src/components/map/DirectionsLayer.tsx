@@ -39,6 +39,13 @@ export function googleMapsMultiStopUrl(origin: LatLng, stops: LatLng[]): string 
 
 export type RouteStatus = 'idle' | 'loading' | 'ok' | 'denied' | 'error'
 
+/** One turn point of a route, for voice guidance (RC4). */
+export interface RouteStep {
+  lat: number
+  lng: number
+  maneuver?: string
+}
+
 export interface RouteResult {
   /** e.g. "12 min" */
   durationText: string
@@ -55,6 +62,8 @@ interface RouteLayerProps {
   destination: LatLng
   onStatus?: (status: RouteStatus) => void
   onResult?: (result: RouteResult | null) => void
+  /** Parsed turn points (start of each step + maneuver) for voice guidance. */
+  onSteps?: (steps: RouteStep[]) => void
 }
 
 /**
@@ -66,6 +75,7 @@ export function RouteLayer({
   destination,
   onStatus,
   onResult,
+  onSteps,
 }: RouteLayerProps) {
   const map = useMap()
   const routesLib = useMapsLibrary('routes')
@@ -79,6 +89,8 @@ export function RouteLayer({
   onStatusRef.current = onStatus
   const onResultRef = useRef(onResult)
   onResultRef.current = onResult
+  const onStepsRef = useRef(onSteps)
+  onStepsRef.current = onSteps
 
   useEffect(() => {
     if (!map || !routesLib) return
@@ -122,6 +134,14 @@ export function RouteLayer({
           } else {
             onResultRef.current?.(null)
           }
+          // Voice guidance (RC4): expose each step's start point + maneuver.
+          onStepsRef.current?.(
+            (leg?.steps ?? []).map((st) => ({
+              lat: st.start_location.lat(),
+              lng: st.start_location.lng(),
+              maneuver: (st as { maneuver?: string }).maneuver,
+            })),
+          )
           onStatusRef.current?.('ok')
         } else if (status === 'REQUEST_DENIED') {
           // Directions API not enabled/billed on the key's project.

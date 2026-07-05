@@ -7,6 +7,7 @@ import {
   EXPLORER_NOTE_MAX_WORDS,
 } from '../../services/questCompletionService'
 import type { ExplorerTags } from '../../lib/supabase/types'
+import { isVoiceMuted, setVoiceMuted, voiceSupported } from '../../lib/voiceNav'
 import { formatDistance, haversineMeters } from '../../lib/distance'
 import type { RankedQuest } from '../../lib/adventureRadar'
 import type { LatLng } from './types'
@@ -95,6 +96,14 @@ export function QuestPreviewCard({
   const [exTags, setExTags] = useState<ExplorerTags>({})
   const [exState, setExState] = useState<'idle' | 'saving' | 'saved'>('idle')
   const [exError, setExError] = useState<string | null>(null)
+
+  // Voice navigation mute/resume (RC4) — persisted preference.
+  const [voiceMuted, setVoiceMutedState] = useState<boolean>(() => isVoiceMuted())
+  const toggleVoice = () => {
+    const next = !voiceMuted
+    setVoiceMuted(next)
+    setVoiceMutedState(next)
+  }
 
   // Share (XNEXT Share Phase): lightweight confirmation toast, no error UI —
   // cancelled/failed shares just fall through silently (never blocks the user).
@@ -598,6 +607,16 @@ export function QuestPreviewCard({
               <button type="button" onClick={handleShare} aria-label="Share this experience">
                 📤 Share
               </button>
+              {voiceSupported() && (
+                <button
+                  type="button"
+                  onClick={toggleVoice}
+                  aria-pressed={!voiceMuted}
+                  aria-label={voiceMuted ? 'Resume voice guidance' : 'Mute voice guidance'}
+                >
+                  {voiceMuted ? '🔇 Voice off' : '🔊 Voice on'}
+                </button>
+              )}
             </div>
             {shareToast && (
               <div className="quest-share-toast" role="status">{shareToast}</div>

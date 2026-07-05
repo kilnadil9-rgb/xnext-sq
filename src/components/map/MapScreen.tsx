@@ -37,7 +37,16 @@ import {
   googleMapsMultiStopUrl,
   type RouteStatus,
   type RouteResult,
+  type RouteStep,
 } from './DirectionsLayer'
+import {
+  speak,
+  maneuverPhrase,
+  announceRouteReady,
+  announceArrived,
+  announceRecalculating,
+  stopSpeaking,
+} from '../../lib/voiceNav'
 import { PlaceSearch } from './PlaceSearch'
 import { AdventureRadarCapsule } from '../ui/AdventureRadarCapsule'
 import { questCompletionService } from '../../services/questCompletionService'
@@ -299,6 +308,18 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   const [routeStatus, setRouteStatus] = useState<RouteStatus>('idle')
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null)
 
+  // Voice navigation (RC4): turn points from RouteLayer + progress refs.
+  // Refs (not state): GPS ticks drive announcements, never re-renders.
+  const routeStepsRef = useRef<RouteStep[]>([])
+  const nextStepIdxRef = useRef(0)
+  const routeAnnouncedRef = useRef(false)
+  const arrivedAnnouncedRef = useRef(false)
+
+  const handleRouteSteps = useCallback((steps: RouteStep[]) => {
+    routeStepsRef.current = steps
+    nextStepIdxRef.current = 0
+  }, [])
+
   // Live Mode state (Phase 1 MVP)
   const [isLiveMode, setIsLiveMode] = useState(false)
   const [liveRadiusMiles, setLiveRadiusMiles] = useState(5)
@@ -487,11 +508,21 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
     setRouteDest(null)
     setRouteStatus('idle')
     setRouteResult(null)
+    stopSpeaking()
+    routeStepsRef.current = []
+    nextStepIdxRef.current = 0
+    routeAnnouncedRef.current = false
+    arrivedAnnouncedRef.current = false
   }, [])
 
   // Activate the route preview to a destination (parking or quest point).
   const handleRequestRoute = useCallback(
     (dest: LatLng) => {
+      // Voice (RC4): switching destinations mid-route = "Recalculating".
+      if (routeDest) announceRecalculating()
+      routeAnnouncedRef.current = false
+      arrivedAnnouncedRef.current = false
+      nextStepIdxRef.current = 0
       // Stop the camera following the user so the route can fit its bounds.
       setFollowMe(false)
       setRouteResult(null)
@@ -500,7 +531,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
       // user to enable location; status flips to loading once it does.
       setRouteStatus(userPosition ? 'loading' : 'idle')
     },
-    [userPosition],
+    [userPosition, routeDest],
   )
 
   const handleSelectQuest = useCallback(
@@ -601,6 +632,37 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
       window.removeEventListener('xnext-live-exit', exit)
     }
   }, [userPosition])
+
+  // Voice (RC4): announce the route summary once per route.
+  useEffect(() => {
+    if (routeStatus === 'ok' && routeResult && routeDest && !routeAnnouncedRef.current) {
+      routeAnnouncedRef.current = true
+      announceRouteReady(routeResult.durationText, routeResult.distanceText)
+    }
+  }, [routeStatus, routeResult, routeDest])
+
+  // Voice (RC4): live guidance from GPS ticks — announce the next turn when
+  // within ~45 m of its start point; announce arrival within ~40 m of the
+  // destination. Refs only; zero extra renders, zero extra network.
+  useEffect(() => {
+    if (!routeDest || !userPosition || routeStatus !== 'ok') return
+    const steps = routeStepsRef.current
+    let reached = -1
+    for (let i = nextStepIdxRef.current; i < steps.length; i++) {
+      if (haversineMeters(userPosition, steps[i]) <= 45) reached = i
+    }
+    if (reached >= 0) {
+      speak(maneuverPhrase(steps[reached].maneuver))
+      nextStepIdxRef.current = reached + 1
+    }
+    if (
+      !arrivedAnnouncedRef.current &&
+      haversineMeters(userPosition, routeDest) <= 40
+    ) {
+      arrivedAnnouncedRef.current = true
+      announceArrived()
+    }
+  }, [userPosition, routeDest, routeStatus])
 
   const handleRetry = useCallback(() => setRefreshKey((k) => k + 1), [])
 
@@ -768,6 +830,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
               destination={routeDest}
               onStatus={setRouteStatus}
               onResult={setRouteResult}
+              onSteps={handleRouteSteps}
             />
           )}
 
