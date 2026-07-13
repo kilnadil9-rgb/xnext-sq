@@ -11,10 +11,9 @@ import type { ExperienceClass, QuestStatus } from '../../lib/supabase/types'
 import { useUserLocation } from '../../hooks/useUserLocation'
 import { LocationPickerMap } from '../map/LocationPickerMap'
 import type { LatLng } from '../map/types'
-import { shareQuest } from '../../utils/shareQuest'
 import { dreamListService } from '../../services/dreamListService'
-import { questCompletionService } from '../../services/questCompletionService'
 import { formatDistance } from '../../lib/distance'
+import { PeopleSheet } from '../people/PeopleSheet'
 
 /** Minimal nearby shape broadcast by MapScreen (Phase 3) for the Pulse sheet. */
 interface NearbySnapshotQuest {
@@ -55,9 +54,6 @@ export function DashboardLayout() {
   const [savedItems, setSavedItems] = useState<
     { quest_id: string; title: string }[]
   >([])
-  const [recentCompletions, setRecentCompletions] = useState<
-    { id: string; title: string; completed_at: string }[]
-  >([])
   const [activityLoaded, setActivityLoaded] = useState(false)
   // Timeline: which window is currently active (kept in sync for the sheet UI).
   const [activeTimeframe, setActiveTimeframe] = useState<
@@ -75,30 +71,19 @@ export function DashboardLayout() {
     return () => window.removeEventListener('xnext-nearby-updated', handler)
   }, [])
 
-  // Lazily load the user's real activity the first time they open Pulse/People.
+  // Lazily load the user's real activity the first time they open Pulse.
+  // (People now loads its own data inside PeopleSheet — no duplicate source.)
   useEffect(() => {
-    if (openSheet !== 'pulse' && openSheet !== 'people') return
+    if (openSheet !== 'pulse') return
     if (activityLoaded) return
     let cancelled = false
-    Promise.all([
-      dreamListService.getMyDreamList({ status: 'saved', limit: 50 }),
-      questCompletionService.getMyCompletions({ limit: 10 }),
-    ]).then(([saved, completed]) => {
+    dreamListService.getMyDreamList({ status: 'saved', limit: 50 }).then((saved) => {
       if (cancelled) return
       if (saved.data) {
         setSavedItems(
           saved.data.map((d) => ({
             quest_id: d.quest_id,
             title: d.quests?.title ?? 'A saved experience',
-          })),
-        )
-      }
-      if (completed.data) {
-        setRecentCompletions(
-          completed.data.map((c) => ({
-            id: c.id,
-            title: c.quests?.title ?? 'An adventure',
-            completed_at: c.completed_at,
           })),
         )
       }
@@ -134,22 +119,6 @@ export function DashboardLayout() {
       new CustomEvent('xnext-timeline-filter', { detail: { range } }),
     )
     closeSheet()
-  }
-
-  // People panel "Share XNEXT" — invites friends to the app itself (not tied
-  // to a single quest), reusing the same native-share-with-clipboard-fallback
-  // helper as the quest share buttons.
-  const [appShareToast, setAppShareToast] = useState<string | null>(null)
-  const handleShareApp = async () => {
-    const result = await shareQuest({ title: 'XNEXT — Discover local adventures' })
-    if (result === 'shared') {
-      setAppShareToast('Share ready')
-    } else if (result === 'copied') {
-      setAppShareToast('Copied to clipboard')
-    } else {
-      return
-    }
-    setTimeout(() => setAppShareToast(null), 2200)
   }
 
   // Discover sheet form state (wired for real submission + photo upload)
@@ -485,8 +454,9 @@ export function DashboardLayout() {
         )}
 
         {/* Sheet overlays for nav items - map stays visible behind.
-            Limited height, scrollable content. */}
-        {openSheet && (
+            Limited height, scrollable content. (People renders its own
+            80dvh sheet below.) */}
+        {openSheet && openSheet !== 'people' && (
           <div
             className="fixed inset-x-0 bottom-0 z-[65] bg-[#0c1420]/96 backdrop-blur-xl border-t border-white/10 rounded-t-2xl shadow-2xl max-h-[65dvh] overflow-auto"
             role="dialog"
@@ -792,79 +762,14 @@ export function DashboardLayout() {
                 </div>
               )}
 
-              {/* Phase 3: People — the user's own real activity (completions +
-                  saves), never fabricated other-user events. Honest empty state
-                  when there's no activity yet. */}
-              {openSheet === 'people' && (
-                <div>
-                  <div className="mb-3 flex items-center justify-between">
-                    <h3 className="font-semibold text-white">People — Your Activity</h3>
-                    <span className="rounded-full border border-[#fde047]/30 bg-[#fde047]/10 px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider text-[#fde047]">
-                      Beta
-                    </span>
-                  </div>
-
-                  {!activityLoaded ? (
-                    <p className="py-6 text-center text-xs text-white/40">Loading your activity…</p>
-                  ) : recentCompletions.length > 0 || savedItems.length > 0 ? (
-                    <>
-                      <p className="mb-3 text-xs text-white/50">
-                        Your adventures so far. A wider community layer is coming.
-                      </p>
-                      <div className="space-y-2">
-                        {recentCompletions.slice(0, 3).map((c) => (
-                          <div key={c.id} className="flex items-center gap-3 p-2 border border-white/10 bg-white/5 rounded">
-                            <div className="w-8 h-8 rounded-full bg-[#f97316]/15 flex-shrink-0 flex items-center justify-center text-sm">🏆</div>
-                            <div className="text-sm text-white/70">
-                              You completed <strong className="text-white">{c.title}</strong>
-                              <span className="block text-[11px] text-white/40">
-                                {new Date(c.completed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                        {savedItems.length > 0 && (
-                          <Link
-                            to="/dashboard/dream-list"
-                            onClick={closeSheet}
-                            className="flex items-center gap-3 p-2 border border-white/10 bg-white/5 rounded hover:bg-white/10 transition-colors"
-                          >
-                            <div className="w-8 h-8 rounded-full bg-white/10 flex-shrink-0 flex items-center justify-center text-sm">🎒</div>
-                            <div className="text-sm text-white/70">
-                              <strong className="text-white">{savedItems.length}</strong> saved on your Dream List
-                            </div>
-                          </Link>
-                        )}
-                      </div>
-                    </>
-                  ) : (
-                    <div className="rounded border border-white/10 bg-white/5 p-4 text-center text-sm text-white/60">
-                      Share or complete an experience to start building your activity.
-                    </div>
-                  )}
-
-                  <div className="mt-3 rounded-lg border border-[#f97316]/40 bg-[#f97316]/10 px-3 py-2">
-                    <p className="mb-2 text-xs text-[#fdba74]">
-                      Share an experience to help grow the community.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={handleShareApp}
-                      className="w-full rounded-md bg-primary py-2 text-xs font-semibold text-primary-foreground"
-                    >
-                      📤 Share XNEXT
-                    </button>
-                    {appShareToast && (
-                      <p className="mt-2 text-center text-[11px] text-[#fdba74]" role="status">
-                        {appShareToast}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}
+
+        {/* People — 80dvh community sheet (Journey Pulse, Community, My
+            Journey, Markers). Radar stays visible behind; map state and any
+            selected experience are preserved because this is a pure overlay. */}
+        {openSheet === 'people' && <PeopleSheet onClose={closeSheet} />}
 
         {/* Footer: hidden on map home (reduced text can live in radar frame or bottom nav if needed); full on other pages. Admin preserved in hamburger. */}
         {!isMapHome && (

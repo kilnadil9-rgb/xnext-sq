@@ -48,8 +48,115 @@ export interface Profile {
    * Future: trusted users get faster approvals. No UI reads it yet.
    */
   trust_score?: number
+  /**
+   * Explorer journey visibility (migration 027): public (name shown on
+   * markers), community (name shown to signed-in explorers), private
+   * (markers appear anonymous; owner still sees their own record).
+   */
+  journey_visibility?: JourneyVisibility
   created_at: string
   updated_at: string
+}
+
+/** Explorer Markers (migration 027) — re-exported from the domain lib so the
+ *  DB types stay in one import path. */
+export type {
+  ExplorerMarkerTier,
+  MarkerStatus,
+  JourneyVisibility,
+} from '../explorerMarkers'
+import type {
+  ExplorerMarkerTier,
+  MarkerStatus,
+  JourneyVisibility,
+} from '../explorerMarkers'
+
+export interface ExplorerMarkerMilestone {
+  milestone_key: string
+  tier: ExplorerMarkerTier
+  quantity: number
+  required_completions: number
+  level_name: string
+  sort_order: number
+  created_at: string
+}
+
+export interface ExplorerMarkerAward {
+  id: string
+  user_id: string
+  tier: ExplorerMarkerTier
+  quantity: number
+  reason: string
+  milestone_key: string
+  completions_at_award: number
+  earned_at: string
+  created_at: string
+}
+
+export interface ExplorerMarker {
+  id: string
+  owner_user_id: string
+  quest_id: string
+  tier: ExplorerMarkerTier
+  note: string | null
+  photo_url: string | null
+  status: MarkerStatus
+  consumed: boolean
+  level_name_at_placement: string | null
+  placed_at: string
+  locked_at: string
+  retired_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ExplorerMarkerDiscovery {
+  id: string
+  marker_id: string
+  user_id: string
+  quest_id: string
+  completion_id: string | null
+  discovered_at: string
+  created_at: string
+}
+
+/** Row shape returned by get_experience_markers() (privacy already applied). */
+export interface ExperienceMarkerView {
+  id: string
+  tier: ExplorerMarkerTier
+  note: string | null
+  photo_url: string | null
+  placed_at: string
+  level_name_at_placement: string | null
+  explorer_name: string
+  is_mine: boolean
+  discovered_by_me: boolean
+  discovery_count: number
+}
+
+/** Row shape returned by get_my_marker_inventory(). */
+export interface MarkerInventoryRow {
+  tier: ExplorerMarkerTier
+  awarded: number
+  available: number
+}
+
+/** Row shape returned by get_community_metrics(). */
+export interface CommunityMetrics {
+  completions_today: number
+  explorer_notes_today: number
+  markers_placed_total: number
+  markers_discovered_today: number
+  dream_completed_today: number
+}
+
+/** Row shape returned by get_community_activity(). */
+export interface CommunityActivityItem {
+  kind: 'marker_placed' | 'marker_discovered' | 'completion' | 'explorer_note'
+  tier: ExplorerMarkerTier | null
+  quest_title: string
+  explorer_name: string | null
+  happened_on: string
 }
 
 export interface Organization {
@@ -634,6 +741,33 @@ export interface Database {
         Update: Partial<Omit<UserQuestPreference, 'user_id' | 'created_at' | 'updated_at'>>
         Relationships: []
       }
+      explorer_marker_milestones: {
+        Row: ExplorerMarkerMilestone
+        Insert: Omit<ExplorerMarkerMilestone, 'created_at'>
+        Update: Partial<Omit<ExplorerMarkerMilestone, 'milestone_key' | 'created_at'>>
+        Relationships: []
+      }
+      explorer_marker_awards: {
+        // Awards are granted ONLY via claim_explorer_milestones() — the client
+        // never inserts/updates rows directly (no RLS write policies exist).
+        Row: ExplorerMarkerAward
+        Insert: never
+        Update: never
+        Relationships: []
+      }
+      explorer_markers: {
+        // Placement/cancellation go through the SECURITY DEFINER functions.
+        Row: ExplorerMarker
+        Insert: never
+        Update: never
+        Relationships: []
+      }
+      explorer_marker_discoveries: {
+        Row: ExplorerMarkerDiscovery
+        Insert: never
+        Update: never
+        Relationships: []
+      }
     }
     Views: {}
     Functions: {
@@ -681,6 +815,61 @@ export interface Database {
           p_offset?: number
         }
         Returns: NearbyQuest[]
+      }
+      // count_verified_completions(uuid) is INTERNAL — EXECUTE revoked from
+      // client roles. Clients use the auth.uid()-scoped variant:
+      get_my_verified_completion_count: {
+        Args: Record<string, never>
+        Returns: number
+      }
+      get_my_keepsakes: {
+        Args: { p_limit?: number }
+        Returns: unknown[]
+      }
+      claim_explorer_milestones: {
+        Args: Record<string, never>
+        Returns: ExplorerMarkerAward[]
+      }
+      place_explorer_marker: {
+        Args: {
+          p_quest_id: string
+          p_tier: ExplorerMarkerTier
+          p_note?: string | null
+          p_photo_url?: string | null
+        }
+        Returns: ExplorerMarker
+      }
+      cancel_explorer_marker: {
+        Args: { p_marker_id: string }
+        Returns: ExplorerMarker
+      }
+      discover_explorer_marker: {
+        Args: {
+          p_marker_id: string
+          p_lat?: number | null
+          p_lng?: number | null
+        }
+        Returns: ExplorerMarkerDiscovery
+      }
+      report_explorer_marker: {
+        Args: { p_marker_id: string; p_reason: string }
+        Returns: void
+      }
+      get_experience_markers: {
+        Args: { p_quest_id: string }
+        Returns: ExperienceMarkerView[]
+      }
+      get_my_marker_inventory: {
+        Args: Record<string, never>
+        Returns: MarkerInventoryRow[]
+      }
+      get_community_metrics: {
+        Args: Record<string, never>
+        Returns: CommunityMetrics[]
+      }
+      get_community_activity: {
+        Args: { p_limit?: number }
+        Returns: CommunityActivityItem[]
       }
     }
     Enums: {

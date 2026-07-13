@@ -18,6 +18,7 @@ import {
 } from './DirectionsLayer'
 import { listingBadge } from '../../services/listingService'
 import { VerifiedBadge } from '../ui/VerifiedBadge'
+import { ExperienceMarkerSummary } from '../markers/ExperienceMarkerSummary'
 import { explorerProofLabel } from '../../lib/trust'
 import { seasonBadges, seasonalStatusLabel } from '../../lib/season'
 import { shareQuest } from '../../utils/shareQuest'
@@ -806,6 +807,22 @@ export function QuestPreviewCard({
           🏆 Completed — saved to your Memories
         </div>
       )}
+
+      {/* Explorer Markers — a new signal ALONGSIDE verification + Explorer
+          Notes (never replacing them). Includes discovery + placement. */}
+      <ExperienceMarkerSummary
+        questId={quest.id}
+        questTitle={quest.title}
+        questLocation={
+          Number.isFinite(quest.lat) && Number.isFinite(quest.lng)
+            ? { lat: quest.lat, lng: quest.lng }
+            : null
+        }
+        experiencePhotos={Array.isArray(quest.media_urls) ? (quest.media_urls as string[]) : []}
+        userLocation={userLocation}
+        isCompleted={isDone}
+      />
+
       {saveError && (
         <p className="quest-sheet__error" role="alert">{saveError}</p>
       )}
