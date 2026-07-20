@@ -14,6 +14,10 @@ export type LocationStatus =
 export interface UserLocationState {
   position: LatLng | null
   accuracy: number | null
+  /** GPS course over ground in degrees (null when stationary/unsupported). */
+  heading: number | null
+  /** GPS ground speed in m/s (null when stationary/unsupported). */
+  speed: number | null
   status: LocationStatus
   error: string | null
 }

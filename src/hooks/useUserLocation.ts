@@ -32,6 +32,8 @@ export function useUserLocation(watch = true) {
   const [state, setState] = useState<UserLocationState>({
     position: null,
     accuracy: null,
+    heading: null,
+    speed: null,
     status: 'idle',
     error: null,
   })
@@ -94,6 +96,10 @@ export function useUserLocation(watch = true) {
     setState({
       position: { lat: pos.coords.latitude, lng: pos.coords.longitude },
       accuracy: pos.coords.accuracy,
+      // Course + speed feed Adventure Navigation (dynamic camera/zoom).
+      // Browsers report NaN/null when stationary or unsupported — normalize.
+      heading: Number.isFinite(pos.coords.heading) ? pos.coords.heading : null,
+      speed: Number.isFinite(pos.coords.speed) ? pos.coords.speed : null,
       status: 'active',
       error: null,
     })

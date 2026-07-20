@@ -1,0 +1,465 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   Adventure Navigation Mode (Nav 2.0) — glass HUD, turn card, arrival
+   celebration, discovery cards, micro animations. All animations are
+   transform/opacity only (compositor-friendly → 60 fps, Goal 11).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.nav2-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none; /* the map stays interactive; children opt back in */
+  z-index: 30;
+  font-family: inherit;
+}
+.nav2-root > * {
+  pointer-events: auto;
+}
+
+/* Entering Adventure Mode: the discovery UI dims + eases away (Goal 1). */
+.nav2-ui-fade {
+  animation: nav2-fade-dim 600ms ease forwards;
+}
+@keyframes nav2-fade-dim {
+  to { opacity: 0.25; }
+}
+
+/* Cinematic dim while the preview flies (Goal 1: "Fade UI slightly"). */
+.nav2-dim {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.35);
+  pointer-events: none;
+  animation: nav2-dim-in 500ms ease both;
+}
+@keyframes nav2-dim-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ── Shared glass surface ── */
+.nav2-glass {
+  background: rgba(15, 23, 42, 0.72);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 18px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  color: #f8fafc;
+}
+
+/* ── Route preview (Goal 8) ── */
+.nav2-preview-skip {
+  position: absolute;
+  top: max(16px, env(safe-area-inset-top));
+  right: 16px;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  animation: nav2-slide-down 350ms ease both;
+}
+.nav2-preview-skip:active { transform: scale(0.96); }
+
+/* ── Turn card (Goal 4) — slides in per step ── */
+.nav2-turn-card {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  left: 14px;
+  right: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  max-width: min(78vw, 340px);
+  background: rgba(15, 23, 42, 0.78);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(249, 115, 22, 0.25);
+  border-radius: 18px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  color: #f8fafc;
+  animation: nav2-slide-down 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.nav2-turn-card__icon {
+  font-size: 1.9rem;
+  line-height: 1;
+  color: #f97316;
+  filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.5));
+}
+.nav2-turn-card__body { min-width: 0; }
+.nav2-turn-card__label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #fdba74;
+}
+.nav2-turn-card__street {
+  font-size: 1.02rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nav2-turn-card__distance {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: #cbd5e1;
+}
+.nav2-turn-card__then {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 0.68rem;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+/* ── HUD (Goal 9) ── */
+.nav2-hud {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(76px + env(safe-area-inset-bottom)); /* clears the bottom nav */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.nav2-hud__bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  background: rgba(15, 23, 42, 0.72);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  color: #f8fafc;
+  animation: nav2-slide-up 380ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.nav2-hud__stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 52px;
+}
+.nav2-hud__stat-value {
+  font-size: 0.98rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.nav2-hud__stat-label {
+  font-size: 0.62rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.nav2-hud__compass {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.05);
+}
+.nav2-hud__compass-needle {
+  display: block;
+  font-size: 0.85rem;
+  color: #f97316;
+  transition: transform 400ms cubic-bezier(0.22, 1, 0.36, 1); /* Goal 10 */
+}
+.nav2-hud__btn {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e2e8f0;
+  font-size: 1rem;
+  transition: transform 150ms ease, background 150ms ease;
+}
+.nav2-hud__btn:active { transform: scale(0.9); }
+.nav2-hud__btn--active { border-color: rgba(249, 115, 22, 0.5); }
+.nav2-hud__btn--end { color: #fca5a5; }
+.nav2-hud__btn--pulse { animation: nav2-pulse 1.8s ease-in-out infinite; }
+
+.nav2-hud__rerouting {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.78);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fcd34d;
+  font-size: 0.78rem;
+  font-weight: 600;
+  animation: nav2-slide-up 250ms ease both;
+}
+.nav2-hud__rerouting-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #fbbf24;
+  animation: nav2-pulse 1s ease-in-out infinite;
+}
+
+/* ── Discovery card (Goal 7) ── */
+.nav2-discovery {
+  position: absolute;
+  right: 12px;
+  top: 32%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(64vw, 270px);
+  padding: 10px 14px;
+  text-align: left;
+  background: rgba(15, 23, 42, 0.78);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  color: #f8fafc;
+  animation: nav2-slide-in-right 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.nav2-discovery--leaving {
+  animation: nav2-fade-out-right 400ms ease both;
+}
+.nav2-discovery__icon { font-size: 1.4rem; }
+.nav2-discovery__body { display: flex; flex-direction: column; min-width: 0; }
+.nav2-discovery__eyebrow {
+  font-size: 0.62rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fdba74;
+}
+.nav2-discovery__title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nav2-discovery__meta { font-size: 0.72rem; color: #94a3b8; }
+
+/* ── Arrival celebration (Goal 6) ── */
+.nav2-arrival {
+  position: absolute;
+  left: 50%;
+  bottom: calc(24px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  width: min(92vw, 400px);
+  max-height: 72vh;
+  overflow-y: auto;
+  padding: 26px 22px 20px;
+  text-align: center;
+  background: rgba(15, 23, 42, 0.88);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border: 1px solid rgba(249, 115, 22, 0.3);
+  border-radius: 24px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6);
+  color: #f8fafc;
+  animation: nav2-arrival-in 520ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes nav2-arrival-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(40px) scale(0.94); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+.nav2-arrival__check {
+  width: 54px;
+  height: 54px;
+  margin: 0 auto 10px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(34, 197, 94, 0.15);
+  border: 2px solid #22c55e;
+  color: #4ade80;
+  font-size: 1.6rem;
+  animation: nav2-pop 600ms cubic-bezier(0.34, 1.56, 0.64, 1) 150ms both;
+}
+.nav2-arrival__eyebrow {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #4ade80;
+}
+.nav2-arrival__title {
+  margin: 6px 0 12px;
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+.nav2-arrival__stars { margin-bottom: 14px; }
+.nav2-arrival__star {
+  font-size: 1.5rem;
+  padding: 2px 4px;
+  color: rgba(255, 255, 255, 0.22);
+  transition: color 150ms ease, transform 150ms ease;
+}
+.nav2-arrival__star--on { color: #fbbf24; }
+.nav2-arrival__star:active { transform: scale(1.25); }
+.nav2-arrival__actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.nav2-arrival__action {
+  padding: 11px 10px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  transition: transform 130ms ease, background 130ms ease;
+}
+.nav2-arrival__action:active { transform: scale(0.96); }
+.nav2-arrival__action:disabled { opacity: 0.45; }
+.nav2-arrival__action--primary {
+  background: rgba(249, 115, 22, 0.18);
+  border-color: rgba(249, 115, 22, 0.45);
+  color: #fdba74;
+}
+.nav2-arrival__note {
+  width: 100%;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f8fafc;
+  font-size: 0.85rem;
+  resize: none;
+}
+.nav2-arrival__error {
+  margin-top: 8px;
+  font-size: 0.78rem;
+  color: #fca5a5;
+}
+.nav2-arrival__complete {
+  width: 100%;
+  margin-top: 14px;
+  padding: 13px;
+  border-radius: 14px;
+  background: #f97316;
+  color: #0f172a;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  transition: transform 130ms ease, filter 130ms ease;
+  animation: nav2-pulse-soft 2.6s ease-in-out infinite; /* Goal 10 */
+}
+.nav2-arrival__complete:active { transform: scale(0.97); }
+
+/* Celebration burst — six tiny sparks arcing out once (Goal 6/10). */
+.nav2-arrival__burst {
+  position: absolute;
+  top: 34px;
+  left: 50%;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+.nav2-arrival__burst span {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #f97316;
+  opacity: 0;
+  animation: nav2-burst 900ms ease-out 300ms both;
+}
+.nav2-arrival__burst span:nth-child(2) { background: #fbbf24; animation-delay: 340ms; --bx: 34px; --by: -46px; }
+.nav2-arrival__burst span:nth-child(1) { --bx: -42px; --by: -38px; }
+.nav2-arrival__burst span:nth-child(3) { background: #4ade80; animation-delay: 380ms; --bx: -20px; --by: -58px; }
+.nav2-arrival__burst span:nth-child(4) { background: #38bdf8; animation-delay: 320ms; --bx: 50px; --by: -22px; }
+.nav2-arrival__burst span:nth-child(5) { background: #f472b6; animation-delay: 400ms; --bx: -55px; --by: -12px; }
+.nav2-arrival__burst span:nth-child(6) { animation-delay: 430ms; --bx: 14px; --by: -64px; }
+@keyframes nav2-burst {
+  0% { opacity: 1; transform: translate(0, 0) scale(1); }
+  100% { opacity: 0; transform: translate(var(--bx, 30px), var(--by, -50px)) scale(0.4); }
+}
+
+/* Destination pin breathes while navigating (Goal 10). */
+.nav2-dest-pin {
+  width: 22px;
+  height: 22px;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  background: #f97316;
+  border: 2px solid #fff7ed;
+  box-shadow: 0 0 14px rgba(249, 115, 22, 0.65);
+  animation: nav2-breathe 2.4s ease-in-out infinite;
+}
+@keyframes nav2-breathe {
+  0%, 100% { transform: rotate(-45deg) scale(1); }
+  50% { transform: rotate(-45deg) scale(1.14); }
+}
+
+/* ── Shared keyframes (transform/opacity only) ── */
+@keyframes nav2-slide-down {
+  from { opacity: 0; transform: translateY(-16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes nav2-slide-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes nav2-slide-in-right {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes nav2-fade-out-right {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(18px); }
+}
+@keyframes nav2-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.55; transform: scale(0.92); }
+}
+@keyframes nav2-pulse-soft {
+  0%, 100% { filter: brightness(1); }
+  50% { filter: brightness(1.12); }
+}
+@keyframes nav2-pop {
+  from { opacity: 0; transform: scale(0.3); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+/* Respect users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .nav2-turn-card,
+  .nav2-hud__bar,
+  .nav2-discovery,
+  .nav2-arrival,
+  .nav2-arrival__check,
+  .nav2-preview-skip,
+  .nav2-hud__rerouting { animation-duration: 1ms; }
+  .nav2-dest-pin,
+  .nav2-arrival__complete,
+  .nav2-hud__btn--pulse,
+  .nav2-hud__rerouting-dot { animation: none; }
+  .nav2-arrival__burst span { animation: none; opacity: 0; }
+}

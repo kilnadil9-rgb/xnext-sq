@@ -48,6 +48,7 @@ import {
   stopSpeaking,
 } from '../../lib/voiceNav'
 import { PlaceSearch } from './PlaceSearch'
+import { AdventureNavigation } from '../navigation/AdventureNavigation'
 import { AdventureRadarCapsule } from '../ui/AdventureRadarCapsule'
 import { questCompletionService } from '../../services/questCompletionService'
 import { dreamListService } from '../../services/dreamListService'
@@ -279,6 +280,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   const {
     position: userPosition,
     accuracy,
+    speed: userSpeed,
     status: locationStatus,
     error: locationError,
     permission: locationPermission,
@@ -307,6 +309,20 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   const [routeDest, setRouteDest] = useState<LatLng | null>(null)
   const [routeStatus, setRouteStatus] = useState<RouteStatus>('idle')
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null)
+
+  // Nav 2.0 — Adventure Navigation Mode. When set, LET'S GO has launched the
+  // immersive session (preview → chase cam → arrival). While active the map's
+  // controlled camera props are RELEASED so the NavigationAnimator owns the
+  // camera, and the discovery chrome (card/search/list) is hidden.
+  const [navSession, setNavSession] = useState<{
+    dest: LatLng
+    title: string
+    quest: RankedQuest | null
+  } | null>(null)
+  const navActiveRef = useRef(false)
+  useEffect(() => {
+    navActiveRef.current = navSession !== null
+  }, [navSession])
 
   // Voice navigation (RC4): turn points from RouteLayer + progress refs.
   // Refs (not state): GPS ticks drive announcements, never re-renders.
@@ -483,6 +499,10 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   }, [])
 
   const handleCameraChanged = useCallback((ev: MapCameraChangedEvent) => {
+    // Adventure Mode: the NavigationAnimator moves the camera every frame —
+    // echoing that into state would re-render MapScreen at 60 fps (Goal 11)
+    // and fight the chase camera. The radar query center resumes on exit.
+    if (navActiveRef.current) return
     setCameraCenter(ev.detail.center)
   }, [])
 
@@ -516,23 +536,70 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   }, [])
 
   // Activate the route preview to a destination (parking or quest point).
+  // Kept as the FALLBACK path (no GPS fix yet, or Directions API failures) —
+  // with a live fix, LET'S GO now enters Adventure Navigation Mode instead.
   const handleRequestRoute = useCallback(
     (dest: LatLng) => {
-      // Voice (RC4): switching destinations mid-route = "Recalculating".
+      if (userPosition) {
+        // ── Nav 2.0: enter Adventure Navigation Mode (Goal 1) ────────────────
+        clearRoute() // never run the legacy preview underneath the session
+        setSelectedPoi(null)
+        setFollowMe(false)
+        setNavSession({
+          dest,
+          title: selectedQuest?.title ?? 'your destination',
+          quest: selectedQuest,
+        })
+        return
+      }
+      // Legacy preview path — no fix yet; the card prompts to enable location.
       if (routeDest) announceRecalculating()
       routeAnnouncedRef.current = false
       arrivedAnnouncedRef.current = false
       nextStepIdxRef.current = 0
-      // Stop the camera following the user so the route can fit its bounds.
       setFollowMe(false)
       setRouteResult(null)
       setRouteDest(dest)
-      // If we have no fix yet, RouteLayer can't mount — the card prompts the
-      // user to enable location; status flips to loading once it does.
-      setRouteStatus(userPosition ? 'loading' : 'idle')
+      setRouteStatus('idle')
     },
-    [userPosition, routeDest],
+    [userPosition, routeDest, selectedQuest, clearRoute],
   )
+
+  // Adventure Mode ends (journey complete or abandoned) → back to discovery.
+  const handleNavExit = useCallback(() => {
+    setNavSession(null)
+    setSelectedQuest(null)
+    setFollowMe(true)
+    if (userPosition) setCameraCenter(userPosition)
+  }, [userPosition])
+
+  // A discovery card was tapped mid-journey → the adventure continues there.
+  const handleNavDiscovery = useCallback(
+    (questId: string) => {
+      const ranked = displayedQuests.find((q) => q.id === questId)
+      if (!ranked) return
+      setSelectedQuest(ranked)
+      setNavSession({
+        dest: { lat: ranked.lat, lng: ranked.lng },
+        title: ranked.title,
+        quest: ranked,
+      })
+    },
+    [displayedQuests],
+  )
+
+  // Directions API failed inside Adventure Mode → fall back to the legacy
+  // preview card, which explains the failure and offers the Google Maps link.
+  const handleNavRouteError = useCallback((kind: 'denied' | 'error') => {
+    setNavSession((s) => {
+      if (s) {
+        setRouteDest(s.dest)
+        setRouteStatus(kind === 'denied' ? 'denied' : 'error')
+      }
+      return null
+    })
+    setFollowMe(true)
+  }, [])
 
   const handleSelectQuest = useCallback(
     (quest: RankedQuest) => {
@@ -777,8 +844,12 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
       <div className="radar-screen__map">
         <Map
           mapId={MAPS_MAP_ID}
-          center={cameraCenter}
-          zoom={14}
+          // Adventure Mode releases the controlled camera: the map's center/
+          // zoom props re-assert on EVERY render, which would snap the chase
+          // camera back each frame. Discovery mode keeps them controlled.
+          {...(navSession
+            ? { defaultCenter: cameraCenter, defaultZoom: 14 }
+            : { center: cameraCenter, zoom: 14 })}
           gestureHandling="greedy"
           disableDefaultUI
           clickableIcons
@@ -821,9 +892,28 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
             isLive={isLiveMode}
           />
 
+          {/* Nav 2.0 — Adventure Navigation Mode (LET'S GO). Owns camera,
+              route line, voice, HUD, rerouting and arrival while mounted. */}
+          {navSession && (
+            <AdventureNavigation
+              key={`${navSession.dest.lat},${navSession.dest.lng}`}
+              destination={navSession.dest}
+              destinationTitle={navSession.title}
+              quest={navSession.quest}
+              nearbyQuests={displayedQuests}
+              userPosition={userPosition}
+              userSpeed={userSpeed}
+              accuracy={accuracy}
+              onExit={handleNavExit}
+              onSelectDiscovery={handleNavDiscovery}
+              onRouteError={handleNavRouteError}
+            />
+          )}
+
           {/* In-app route preview line (Phase 2). Mounts only while a preview
-              is active AND we have a GPS fix; unmounting clears the line. */}
-          {routeDest && userPosition && !ysStops && (
+              is active AND we have a GPS fix; unmounting clears the line.
+              This is now the FALLBACK path (Adventure Mode owns LET'S GO). */}
+          {routeDest && userPosition && !ysStops && !navSession && (
             <RouteLayer
               key={`${routeDest.lat},${routeDest.lng}`}
               origin={userPosition}
@@ -849,7 +939,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
         {/* Search-first UX removed: XNEXT surfaces adventures, users don't hunt.
             Classic /map keeps the search + radius bar; cinematic Home is calm
             (HUD + bottom nav only). */}
-        {!cinematic && (
+        {!cinematic && !navSession && (
           <div className="map-screen__top">
             <PlaceSearch />
             <select
@@ -882,7 +972,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
         {/* Cinematic Adventure Radar HUD — identity + live status, Home only.
             Sits above the map, below the corner chrome; the docked list below
             remains the full nearby panel. */}
-        {cinematic && (
+        {cinematic && !navSession && (
           <div className="radar-hud">
             <AdventureRadarCapsule
               questCount={rankedQuests.length}
@@ -996,7 +1086,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
 
         {/* Clearer permission note — XNEXT language, less generic.
             On cinematic Home the radar HUD already conveys location state. */}
-        {!cinematic && (
+        {!cinematic && !navSession && (
           <div className="absolute right-3 top-[88px] z-[60] max-w-[200px] rounded-md border border-border/70 bg-card/95 px-2 py-1 text-[10px] leading-snug shadow text-muted-foreground">
             See real experiences near you.<br />
             XNEXT uses your location only for discovery. Never sold.<br />
@@ -1004,20 +1094,24 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
           </div>
         )}
 
-        <button
-          type="button"
-          className={`locate-button${followMe ? ' locate-button--active' : ''}`}
-          aria-label="Locate me"
-          aria-pressed={followMe}
-          disabled={locationStatus === 'locating'}
-          onClick={() => {
-            setFollowMe(true)
-            if (userPosition) setCameraCenter(userPosition)
-            requestLocation()
-          }}
-        >
-          {locationStatus === 'locating' ? '…' : '◎'}
-        </button>
+        {/* Adventure Mode owns the whole screen: recenter/mute/exit live in
+            the NavigationHUD, so the discovery locate button steps aside. */}
+        {!navSession && (
+          <button
+            type="button"
+            className={`locate-button${followMe ? ' locate-button--active' : ''}`}
+            aria-label="Locate me"
+            aria-pressed={followMe}
+            disabled={locationStatus === 'locating'}
+            onClick={() => {
+              setFollowMe(true)
+              if (userPosition) setCameraCenter(userPosition)
+              requestLocation()
+            }}
+          >
+            {locationStatus === 'locating' ? '…' : '◎'}
+          </button>
+        )}
 
         {/* Location toasts: classic /map only — on cinematic Home the radar
             capsule is the single location banner (no stacked duplicates). */}
@@ -1161,7 +1255,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
           </div>
         )}
 
-        {selectedQuest && !ysStops && (
+        {selectedQuest && !ysStops && !navSession && (
           <QuestPreviewCard
             quest={selectedQuest}
             userLocation={locationStatus === 'active' ? userPosition : null}
@@ -1177,7 +1271,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
             routeResult={routeResult}
           />
         )}
-        {selectedPoi && !selectedQuest && !ysStops && (
+        {selectedPoi && !selectedQuest && !ysStops && !navSession && (
           <GooglePoiSheet
             poi={selectedPoi}
             onClose={() => {
@@ -1194,6 +1288,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
         )}
       </div>
 
+      {navSession ? null : (
       <QuestList
         quests={displayedQuests}
         selectedId={selectedQuest?.id ?? null}
@@ -1208,6 +1303,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
         canWiden={canWiden}
         userLocation={locationStatus === 'active' ? userPosition : null}
       />
+      )}
     </div>
   )
 }
