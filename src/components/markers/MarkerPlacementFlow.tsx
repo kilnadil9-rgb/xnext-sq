@@ -20,6 +20,12 @@ import {
 } from '../../lib/explorerMarkers'
 import { MarkerTierIcon } from './MarkerTierIcon'
 import { track } from '../../lib/analytics'
+import {
+  MARKER_CONTRIBUTION_TYPES,
+  markerCommunity,
+  markerTypeConfig,
+  type MarkerContributionType,
+} from '../../lib/discoveryCommunities'
 
 interface Props {
   questId: string
@@ -42,6 +48,8 @@ export function MarkerPlacementFlow({
   const { inventory, loading } = useMarkerInventory()
   const [step, setStep] = useState<Step>('tier')
   const [tier, setTier] = useState<ExplorerMarkerTier | null>(null)
+  // The Chase (2.0): what KIND of contribution this is — exactly one.
+  const [markerType, setMarkerType] = useState<MarkerContributionType>('favorite_spot')
   const [note, setNote] = useState('')
   const [photoUrl, setPhotoUrl] = useState<string | null>(null)
   const [placing, setPlacing] = useState(false)
@@ -73,6 +81,8 @@ export function MarkerPlacementFlow({
       tier,
       note: note.trim() || null,
       photoUrl,
+      markerType,
+      community: markerCommunity({ title: questTitle }, markerType),
     })
     setPlacing(false)
     if (res.error) {
@@ -175,8 +185,30 @@ export function MarkerPlacementFlow({
               </div>
             </div>
 
+            {/* The Chase: choose what KIND of contribution you're leaving. */}
+            <p className="mb-1 text-xs text-white/50">
+              What are you leaving for the next explorer?
+            </p>
+            <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1">
+              {MARKER_CONTRIBUTION_TYPES.map((t) => (
+                <button
+                  key={t.type}
+                  type="button"
+                  onClick={() => setMarkerType(t.type)}
+                  aria-pressed={markerType === t.type}
+                  className={`flex-shrink-0 rounded-full border px-3 py-1.5 text-xs ${
+                    markerType === t.type
+                      ? 'border-[#f97316] bg-[#f97316]/15 text-[#fdba74]'
+                      : 'border-white/15 bg-white/5 text-white/60'
+                  }`}
+                >
+                  {t.icon} {t.label}
+                </button>
+              ))}
+            </div>
+
             <label htmlFor="marker-note" className="mb-1 block text-xs text-white/50">
-              A short note for the next explorer (optional)
+              {markerTypeConfig(markerType).prompt}
             </label>
             <textarea
               id="marker-note"

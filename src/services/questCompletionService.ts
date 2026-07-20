@@ -41,6 +41,9 @@ export interface QuestCompletionWithQuest extends QuestCompletion {
     experience_class: ExperienceClass
     sq_score: number | null
     city: string | null
+    /** Community Intelligence inputs (The Chase). */
+    tags?: string[] | null
+    description?: string | null
   } | null
 }
 
@@ -167,7 +170,7 @@ export const questCompletionService = {
 
     const { data, error } = await supabase
       .from('quest_completions')
-      .select('*, quests(id,title,slug,experience_class,sq_score,city)')
+      .select('*, quests(id,title,slug,experience_class,sq_score,city,tags,description)')
       .eq('user_id', user.id)
       .order('completed_at', { ascending: false })
       .range(offset, offset + limit - 1)

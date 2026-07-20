@@ -120,7 +120,9 @@ export interface ExplorerMarkerDiscovery {
   created_at: string
 }
 
-/** Row shape returned by get_experience_markers() (privacy already applied). */
+/** Row shape returned by get_experience_markers() (privacy already applied).
+ * Since migration 029, note/photo_url are NULL until the caller unlocks the
+ * marker on-site (The Chase: content never travels remotely). */
 export interface ExperienceMarkerView {
   id: string
   tier: ExplorerMarkerTier
@@ -132,6 +134,9 @@ export interface ExperienceMarkerView {
   is_mine: boolean
   discovered_by_me: boolean
   discovery_count: number
+  /** The Chase (029): contribution type + community. */
+  marker_type?: string
+  community?: string | null
 }
 
 /** Row shape returned by get_my_marker_inventory(). */

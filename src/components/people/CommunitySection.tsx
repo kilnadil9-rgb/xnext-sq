@@ -8,6 +8,7 @@
  * Explorer Spotlight: structure only — empty-state capable, no invented users.
  */
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useCommunityMetrics } from '../../hooks/useExplorerMarkers'
 import { MARKER_TIER_LABEL } from '../../lib/explorerMarkers'
 import type { CommunityActivityItem } from '../../lib/supabase/types'
@@ -49,6 +50,21 @@ export function CommunitySection() {
 
   return (
     <div className="space-y-4 p-4">
+      {/* ── The Chase — the discovery economy front door ── */}
+      <Link
+        to="/dashboard/community"
+        className="flex items-center justify-between rounded-2xl border border-orange-500/30 bg-orange-500/10 px-4 py-3"
+        aria-label="Open The Chase — hidden drops near you"
+      >
+        <span>
+          <span className="block text-sm font-bold text-orange-300">🔥 The Chase</span>
+          <span className="block text-[11px] text-white/50">
+            Explorers left hidden drops near you. Go see what they are.
+          </span>
+        </span>
+        <span aria-hidden className="text-orange-300">→</span>
+      </Link>
+
       {/* ── World in Motion ── */}
       <section aria-label="World in Motion">
         <h4 className="mb-2 text-[11px] font-semibold uppercase tracking-[1.5px] text-white/40">

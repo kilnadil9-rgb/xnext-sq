@@ -48,6 +48,7 @@ const AdminReviewPage = lazy(() => import('./pages/dashboard/AdminReviewPage'))
 const AdminListingsPage = lazy(() => import('./pages/dashboard/AdminListingsPage'))
 const AdminDiscoveryMapPage = lazy(() => import('./pages/dashboard/AdminDiscoveryMapPage'))
 const PostListingPage = lazy(() => import('./pages/dashboard/PostListingPage'))
+const ChasePage = lazy(() => import('./pages/dashboard/ChasePage'))
 
 const suspense = (node: ReactNode) => (
   <Suspense fallback={<LoadingState fullScreen />}>{node}</Suspense>
@@ -96,6 +97,7 @@ export function App() {
               <Route path="/dashboard/completed" element={suspense(<CompletedQuestsPage />)} />
               <Route path="/dashboard/preferences" element={suspense(<PreferencesPage />)} />
               <Route path="/dashboard/pulse" element={<PulsePage />} />
+              <Route path="/dashboard/community" element={suspense(<ChasePage />)} />
               <Route path="/dashboard/trust" element={<TrustPrivacyPage />} />
               <Route path="/dashboard/admin/review" element={suspense(<AdminReviewPage />)} />
               <Route path="/dashboard/admin/listings" element={suspense(<AdminListingsPage />)} />

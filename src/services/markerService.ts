@@ -40,6 +40,10 @@ export interface PlaceMarkerInput {
   note?: string | null
   /** Optional existing photo URL (experience photo or uploaded completion photo). */
   photoUrl?: string | null
+  /** The Chase (029): what KIND of contribution this is (default favorite_spot). */
+  markerType?: string
+  /** The Chase (029): community the marker lives in (from markerCommunity()). */
+  community?: string | null
 }
 
 /**
@@ -151,6 +155,8 @@ export const markerService = {
       p_tier: input.tier,
       p_note: input.note?.trim() || null,
       p_photo_url: input.photoUrl || null,
+      p_marker_type: input.markerType ?? 'favorite_spot',
+      p_community: input.community ?? null,
     })
     if (error) return { data: null, error: extractMessage(error) }
     return { data: data as unknown as ExplorerMarker, error: null }
