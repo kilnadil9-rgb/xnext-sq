@@ -66,9 +66,19 @@ export function EditQuestPage() {
       <div>
         <h1 className="text-xl font-semibold text-foreground">Edit quest</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Status: <span className="capitalize">{quest.status}</span>
+          Status: <span className="capitalize">{quest.status.replace('_', ' ')}</span>
         </p>
       </div>
+
+      {quest.status === 'published' && (
+        <p
+          className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-200"
+          role="note"
+        >
+          This listing is live. Saving changes sends it back to admin review, and
+          it is hidden from the map until an admin approves it again.
+        </p>
+      )}
 
       {saveError && (
         <p
