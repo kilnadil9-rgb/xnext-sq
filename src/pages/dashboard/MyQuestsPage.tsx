@@ -129,15 +129,14 @@ export function MyQuestsPage() {
                 </div>
 
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {quest.status !== 'published' &&
-                    quest.status !== 'archived' && (
+                  {quest.status === 'draft' && (
                       <button
                         type="button"
                         disabled={busy}
-                        onClick={() => transition(quest, 'published')}
+                        onClick={() => transition(quest, 'pending_review')}
                         className="inline-flex min-h-9 items-center rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground disabled:opacity-50"
                       >
-                        {busy ? '…' : 'Publish'}
+                        {busy ? '…' : 'Submit for review'}
                       </button>
                     )}
                   {quest.status === 'published' && (

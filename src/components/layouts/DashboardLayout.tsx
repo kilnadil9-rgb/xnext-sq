@@ -24,11 +24,10 @@ interface NearbySnapshotQuest {
 }
 
 /**
- * Phase 1 testing: discoveries are visible immediately so uploaders trust the
- * flow ("no waiting for moderation to verify basic visibility"). Flip to false
- * to route new discoveries through admin review (pending_review) instead.
+ * Discoveries go through admin review (pending_review). The database refuses
+ * self-publishing by non-admins (migration 036), so this must stay false.
  */
-const DISCOVERY_AUTO_PUBLISH = true
+const DISCOVERY_AUTO_PUBLISH = false
 
 /**
  * Primary app shell for authenticated users.
