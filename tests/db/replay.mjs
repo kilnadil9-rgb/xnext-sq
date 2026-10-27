@@ -20,6 +20,10 @@ export function adaptSql(sql) {
     .replace(/^.*USING GIST \(.*$/gim, '-- (gist index skipped)')
 }
 
+// DB_REPLAY_SKIP=027,029 replays the chain as it exists on the live DB
+// (027–029 are not applied in production as of 2026-10-27).
+const SKIP = (process.env.DB_REPLAY_SKIP || '').split(',').map((s) => s.trim()).filter(Boolean)
+
 export async function resetAndReplay(client, { through = 999 } = {}) {
   await client.query(`DROP SCHEMA IF EXISTS public CASCADE`)
   await client.query(`DROP SCHEMA IF EXISTS auth CASCADE`)
@@ -32,6 +36,7 @@ export async function resetAndReplay(client, { through = 999 } = {}) {
   const applied = []
   for (const f of files) {
     if (Number(f.slice(0, 3)) > through) continue
+    if (SKIP.includes(f.slice(0, 3))) continue
     if (f.startsWith('029_')) {
       // Stand-in for the missing 028: 029 redefines get_experience_markers with
       // a different return type, so the old 027 version must be dropped first.

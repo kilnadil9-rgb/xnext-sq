@@ -12,6 +12,12 @@
 --     where polrelid = 'public.profiles'::regclass;
 --     select tgname from pg_trigger where tgrelid = 'public.profiles'::regclass and not tgisinternal;
 --
+-- LIVE CHECK 2026-10-27 (read-only): CONFIRMED on production. profiles UPDATE
+-- policy is (auth.uid() = id)/(auth.uid() = id), no trigger on profiles, and
+-- column UPDATE grants to authenticated include is_admin and trust_score.
+-- Apply this BEFORE (or with) 031. Compatible with live: handle_new_user runs
+-- with no end-user JWT (exempt); refresh_quest_verified_location is nested.
+--
 -- Proposed fix: a BEFORE INSERT/UPDATE trigger that refuses end-user writes to
 -- the privileged columns. SECURITY DEFINER trigger functions that legitimately
 -- change trust_score run nested (pg_trigger_depth() > 1) and are exempt; the
