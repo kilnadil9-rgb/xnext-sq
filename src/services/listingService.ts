@@ -1,3 +1,4 @@
+import { DOG_MEETUP_BADGE } from '../lib/dogMeetups'
 import { supabase } from '../lib/supabase/client'
 import type {
   Quest,
@@ -267,6 +268,8 @@ export function listingBadge(q: {
   tier?: ListingTier | null
 }): ListingBadge | null {
   if (!q.listing_type) return null
+  // Dog Meetups: a plain, honest label — never "featured"/"partner"/"verified".
+  if (q.listing_type === 'dog_meetup') return { ...DOG_MEETUP_BADGE }
   // Monthly Local Partner (venues, concerts, major events) outranks the
   // generic featured label — stronger event/venue presentation.
   if (isPartnerTier(q.tier)) return { label: 'Local Partner', kind: 'featured' }

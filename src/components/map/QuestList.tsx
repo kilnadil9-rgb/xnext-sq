@@ -8,6 +8,7 @@ import {
 } from '../../lib/adventureRadar'
 import { seasonBadges, seasonalStatusLabel } from '../../lib/season'
 import { VerifiedBadge } from '../ui/VerifiedBadge'
+import { DOG_MEETUPS_EMPTY_STATE, dogSizeLabel, formatMeetupWhen, isDogMeetup } from '../../lib/dogMeetups'
 
 interface Props {
   quests: RankedQuest[]
@@ -24,6 +25,8 @@ interface Props {
   canWiden?: boolean
   /** Single source of truth for distance — the real user GPS fix, or null. */
   userLocation?: LatLng | null
+  /** Dog Meetups filter is on: use the meetup-specific empty state. */
+  dogOnly?: boolean
 }
 
 /** Adventure Radar list: ranked nearby quests beside/below the map. */
@@ -40,6 +43,7 @@ export function QuestList({
   onWiden,
   canWiden = false,
   userLocation = null,
+  dogOnly = false,
 }: Props) {
   // Distance from the real user location when we have a GPS fix; otherwise fall
   // back to the server's radar distance. Keeps every distance on one source.
@@ -95,7 +99,19 @@ export function QuestList({
         </div>
       )}
 
-      {!loading && !error && quests.length === 0 && (
+      {!loading && !error && quests.length === 0 && dogOnly && (
+        <div className="radar-list__state">
+          <div className="radar-list__state-icon" aria-hidden="true">🐕</div>
+          <p>{DOG_MEETUPS_EMPTY_STATE}</p>
+          <div className="radar-list__actions">
+            <Link to="/dashboard/dog-meetups/new" className="radar-list__cta-primary">
+              Create a Dog Meetup
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {!loading && !error && quests.length === 0 && !dogOnly && (
         <div className="radar-list__state">
           <div className="radar-list__state-icon" aria-hidden="true">🧭</div>
           <p>No XNEXT quests within {formatDistance(radiusKm * 1000)} yet.</p>
@@ -137,7 +153,7 @@ export function QuestList({
               >
                 <span className="radar-row__title">
                   {quest.title}
-                  {quest.verified_location && (
+                  {quest.verified_location && !isDogMeetup(quest) && (
                     <>
                       {' '}
                       <VerifiedBadge size={14} />
@@ -146,12 +162,19 @@ export function QuestList({
                 </span>
                 <span className="radar-row__meta">
                   <span className="radar-row__class">
-                    {quest.experience_class}
+                    {isDogMeetup(quest)
+                      ? `🐕 ${formatMeetupWhen(quest) ?? 'Dog Meetup'}`
+                      : quest.experience_class}
                   </span>
                   · {formatDistance(displayMeters(quest))}
                   {quest.location_name ? ` · ${quest.location_name}` : ''}
                 </span>
                 <span className="radar-row__badges">
+                  {isDogMeetup(quest) && (
+                    <span className="quest-listing-badge quest-listing-badge--dog">
+                      Dog Meetup{dogSizeLabel(quest.dog_size) ? ` · ${dogSizeLabel(quest.dog_size)}` : ''}
+                    </span>
+                  )}
                   {(() => {
                     const status = seasonalStatusLabel(quest)
                     return status ? (

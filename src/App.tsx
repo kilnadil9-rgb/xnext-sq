@@ -48,6 +48,8 @@ const AdminReviewPage = lazy(() => import('./pages/dashboard/AdminReviewPage'))
 const AdminListingsPage = lazy(() => import('./pages/dashboard/AdminListingsPage'))
 const AdminDiscoveryMapPage = lazy(() => import('./pages/dashboard/AdminDiscoveryMapPage'))
 const PostListingPage = lazy(() => import('./pages/dashboard/PostListingPage'))
+const DogMeetupPage = lazy(() => import('./pages/dashboard/DogMeetupPage'))
+const AdminMeetupsPage = lazy(() => import('./pages/dashboard/AdminMeetupsPage'))
 const ChasePage = lazy(() => import('./pages/dashboard/ChasePage'))
 
 const suspense = (node: ReactNode) => (
@@ -90,6 +92,7 @@ export function App() {
               <Route path="/dashboard/quests" element={<QuestsPage />} />
               <Route path="/dashboard/quests/new" element={suspense(<CreateQuestPage />)} />
               <Route path="/dashboard/post-event" element={suspense(<PostListingPage />)} />
+              <Route path="/dashboard/dog-meetups/new" element={suspense(<DogMeetupPage />)} />
               <Route path="/dashboard/quests/mine" element={suspense(<MyQuestsPage />)} />
               <Route path="/dashboard/quests/:id/edit" element={suspense(<EditQuestPage />)} />
               <Route path="/dashboard/quests/:id" element={<QuestDetailPage />} />
@@ -100,6 +103,7 @@ export function App() {
               <Route path="/dashboard/community" element={suspense(<ChasePage />)} />
               <Route path="/dashboard/trust" element={<TrustPrivacyPage />} />
               <Route path="/dashboard/admin/review" element={suspense(<AdminReviewPage />)} />
+              <Route path="/dashboard/admin/meetups" element={suspense(<AdminMeetupsPage />)} />
               <Route path="/dashboard/admin/listings" element={suspense(<AdminListingsPage />)} />
               <Route path="/dashboard/admin/discovery-map" element={suspense(<AdminDiscoveryMapPage />)} />
               {/* Command Center — same page; old discovery-map path kept for stability. */}

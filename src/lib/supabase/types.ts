@@ -265,6 +265,10 @@ export type ListingType =
   | 'business_promo'
   | 'market_show'
   | 'community_event'
+  /** Social dog playdate (migration 030/031). Always admin-reviewed. */
+  | 'dog_meetup'
+
+export type DogSize = 'small' | 'medium' | 'large' | 'all'
 
 export type ListingTier =
   | 'yard_sale'
@@ -338,6 +342,13 @@ export interface Quest {
   completed_count?: number
   /** Ticket purchase link (migration 023; Monthly Local Partner tier only). */
   ticket_url?: string | null
+  // Dog Meetup fields (migration 031). Null on every other quest type.
+  dog_size?: DogSize | null
+  dog_fenced?: boolean | null
+  dog_leash_info?: string | null
+  dog_parking_info?: string | null
+  /** Private-bucket object path of the pending photo. Never a URL. */
+  dog_photo_pending_path?: string | null
   // scoring_factors and availability_windows are NOT columns on the quests table
   // (per review). They have been removed from Quest Row type to avoid phantom
   // properties. Use QuestByIdResult for getQuestById() if/when they are sourced
@@ -407,6 +418,11 @@ export interface NearbyQuest {
   external_url?: string | null
   /** Ticket link — RPC gates this to the monthly_partner tier. */
   ticket_url?: string | null
+  // Dog Meetup fields (migration 034 RPC); null for other types.
+  dog_size?: DogSize | null
+  dog_fenced?: boolean | null
+  dog_leash_info?: string | null
+  dog_parking_info?: string | null
 }
 
 // ─── SQ Domain tables (derived directly from migrations 008-013) ──────────────

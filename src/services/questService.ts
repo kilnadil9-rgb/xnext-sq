@@ -3,6 +3,7 @@ import type { Quest, ExperienceClass, QuestStatus, QuestByIdResult, NearbyQuest 
 import type { ServiceResult } from '../lib/serviceUtils'
 import { extractMessage } from '../lib/serviceUtils'
 import { toEwktPoint, questSlug } from '../lib/geo'
+import { isDogMeetup } from '../lib/dogMeetups'
 
 // ─── Phase 1.8 rollout safety ──────────────────────────────────────────────────
 // Columns added by migration 019. If the migration hasn't been applied yet (or
@@ -36,6 +37,16 @@ function withoutSeasonalColumns<T extends Record<string, unknown>>(
     if (!(SEASONAL_COLUMNS as readonly string[]).includes(key)) out[key] = value
   }
   return out as Partial<T>
+}
+
+/**
+ * Dog meetups are time-boxed, and only surfaced through find_quests_nearby
+ * (which applies the upcoming window + expiry). Direct list/search queries
+ * drop them client-side — done here rather than in SQL so these queries keep
+ * working before migration 030 adds the enum value.
+ */
+function withoutMeetups<T extends { listing_type?: string | null }>(rows: T[]): T[] {
+  return rows.filter((q) => !isDogMeetup(q))
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -170,7 +181,7 @@ export const questService = {
     const { data, error } = await query
 
     if (error) return { data: null, error: extractMessage(error) }
-    return { data: data ?? [], error: null }
+    return { data: withoutMeetups(data ?? []), error: null }
   },
 
   /**
@@ -246,7 +257,7 @@ export const questService = {
     const { data, error } = await dbQuery
 
     if (error) return { data: null, error: extractMessage(error) }
-    return { data: data ?? [], error: null }
+    return { data: withoutMeetups(data ?? []), error: null }
   },
 
   /**
@@ -303,7 +314,7 @@ export const questService = {
       .range(offset, offset + limit - 1)
 
     if (error) return { data: null, error: extractMessage(error) }
-    return { data: data ?? [], error: null }
+    return { data: withoutMeetups(data ?? []), error: null }
   },
 
   // ─── Creator flow (RLS: "Users can manage their own quests") ──────────────

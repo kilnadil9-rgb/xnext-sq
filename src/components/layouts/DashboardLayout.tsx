@@ -359,6 +359,7 @@ export function DashboardLayout() {
             <NavItem to="/dashboard/pulse" label="Pulse" icon={PulseIcon} />
             <NavItem to="/dashboard/quests/new" label="Create Quest" icon={QuestIcon} />
             <NavItem to="/dashboard/post-event" label="Post Event" icon={QuestIcon} />
+            <NavItem to="/dashboard/dog-meetups/new" label="Dog Meetup" icon={QuestIcon} />
             <NavItem to="/dashboard/completed" label="Memories" icon={QuestIcon} />
             <NavItem to="/dashboard/preferences" label="Preferences" icon={UsersIcon} />
             <NavItem to="/dashboard/trust" label="Trust & Privacy" icon={DreamListIcon} />
@@ -374,6 +375,7 @@ export function DashboardLayout() {
               <ul className="space-y-1">
                 <NavItem to="/dashboard/admin/listings" label="Create Listing" icon={QuestIcon} />
                 <NavItem to="/dashboard/admin/review" label="Review Queue" icon={DreamListIcon} />
+                <NavItem to="/dashboard/admin/meetups" label="Dog Meetups" icon={DreamListIcon} />
                 <NavItem to="/dashboard/admin/discovery-map" label="Command Center" icon={PulseIcon} />
               </ul>
             </div>
@@ -481,6 +483,14 @@ export function DashboardLayout() {
                     className="mb-4 flex items-center justify-between rounded-lg border border-[#f97316]/40 bg-[#f97316]/10 px-3 py-2 text-xs text-[#fdba74]"
                   >
                     <span>Hosting a yard sale, pop-up, or event? Post it as a listing</span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                  <Link
+                    to="/dashboard/dog-meetups/new"
+                    onClick={closeSheet}
+                    className="mb-4 flex items-center justify-between rounded-lg border border-[#f97316]/40 bg-[#f97316]/10 px-3 py-2 text-xs text-[#fdba74]"
+                  >
+                    <span>Planning a dog playdate? Create a Dog Meetup</span>
                     <span aria-hidden="true">→</span>
                   </Link>
 

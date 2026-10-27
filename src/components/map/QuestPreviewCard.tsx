@@ -22,6 +22,8 @@ import { ExperienceMarkerSummary } from '../markers/ExperienceMarkerSummary'
 import { explorerProofLabel } from '../../lib/trust'
 import { seasonBadges, seasonalStatusLabel } from '../../lib/season'
 import { shareQuest } from '../../utils/shareQuest'
+import { dogInfoChips, dogSizeLabel, formatMeetupWhen, isDogMeetup } from '../../lib/dogMeetups'
+import { ReportMeetupPanel } from './ReportMeetupPanel'
 
 type SaveState = 'checking' | 'not_saved' | 'saving' | 'saved'
 type CompletionState = 'checking' | 'not_done' | 'completing' | 'done'
@@ -263,6 +265,12 @@ export function QuestPreviewCard({
   const isDone = completionState === 'done'
   const saveBusy = saveState === 'checking' || saveState === 'saving' || saveState === 'saved'
   const badge = listingBadge(quest)
+  // Dog Meetups are social playdates: never shown as verified, and completion
+  // is a personal log (it does not independently verify attendance).
+  const isMeetup = isDogMeetup(quest)
+  const showVerified = Boolean(quest.verified_location) && !isMeetup
+  const meetupWhen = isMeetup ? formatMeetupWhen(quest) : null
+  const meetupChips = isMeetup ? dogInfoChips(quest) : []
   const seasonStatus = seasonalStatusLabel(quest)
   const seasons = seasonBadges(quest)
 
@@ -284,7 +292,7 @@ export function QuestPreviewCard({
           ))}
         </div>
         <div className="xnext-celebrate__icon" aria-hidden="true">🏆</div>
-        <h2 className="xnext-celebrate__title">Adventure Complete</h2>
+        <h2 className="xnext-celebrate__title">{isMeetup ? 'Meetup logged' : 'Adventure Complete'}</h2>
         <div className="xnext-celebrate__rewards">
           <div className="xnext-celebrate__reward">+{xpEarned} XP Earned</div>
           <div className="xnext-celebrate__reward xnext-celebrate__reward--memory">
@@ -423,7 +431,7 @@ export function QuestPreviewCard({
   if (view === 'compact') {
     return (
       <div
-        className={`quest-compact${quest.verified_location ? ' quest-compact--verified' : ''}`}
+        className={`quest-compact${showVerified ? ' quest-compact--verified' : ''}`}
         role="dialog"
         aria-label={quest.title}
       >
@@ -457,7 +465,7 @@ export function QuestPreviewCard({
             )}
             <span className="quest-compact__title">
               {quest.title}
-              {quest.verified_location && (
+              {showVerified && (
                 <>
                   {' '}
                   <VerifiedBadge size={14} />
@@ -465,7 +473,9 @@ export function QuestPreviewCard({
               )}
             </span>
             <span className="quest-compact__meta">
-              <span className="quest-compact__class">{quest.experience_class}</span>
+              {isMeetup
+                ? <span className="quest-compact__class">{meetupWhen ?? 'Dog Meetup'}</span>
+                : <span className="quest-compact__class">{quest.experience_class}</span>}
               {' · '}{distLabel}
               {isDone ? ' · 🏆' : ''}
             </span>
@@ -600,7 +610,7 @@ export function QuestPreviewCard({
                 className="quest-sheet__primary"
                 onClick={() => setShowCompleteForm(true)}
               >
-                Complete Adventure
+                {isMeetup ? 'I went to this meetup' : 'Complete Adventure'}
               </button>
               <button type="button" onClick={backToCompact}>
                 Not Today
@@ -751,7 +761,7 @@ export function QuestPreviewCard({
       )}
       <h2>
         {quest.title}
-        {quest.verified_location && (
+        {showVerified && (
           <>
             {' '}
             <VerifiedBadge withLabel label="Verified by explorers" size={18} />
@@ -759,11 +769,20 @@ export function QuestPreviewCard({
         )}
       </h2>
       {/* Social proof — real counts only; renders nothing at zero. */}
-      {explorerProofLabel(quest) && (
+      {!isMeetup && explorerProofLabel(quest) && (
         <p className="quest-sheet__proof">{explorerProofLabel(quest)}</p>
       )}
+      {isMeetup && meetupWhen && (
+        <p className="quest-sheet__meta" style={{ fontWeight: 600 }}>🗓️ {meetupWhen}</p>
+      )}
+      {isMeetup && (
+        <p className="quest-sheet__meta">
+          🐕 {dogSizeLabel(quest.dog_size) ?? 'All sizes'}
+          {meetupChips.length > 0 ? ` · ${meetupChips.join(' · ')}` : ''}
+        </p>
+      )}
       <p className="quest-sheet__meta">
-        {quest.experience_class} · {distLabel}
+        {isMeetup ? 'dog meetup' : quest.experience_class} · {distLabel}
         {quest.location_name ? ` · ${quest.location_name}` : ''}
         {quest.sq_score !== null && (
           <span className="badge badge--sq"> SQ {Math.round(quest.sq_score)}</span>
@@ -810,7 +829,7 @@ export function QuestPreviewCard({
 
       {/* Explorer Markers — a new signal ALONGSIDE verification + Explorer
           Notes (never replacing them). Includes discovery + placement. */}
-      <ExperienceMarkerSummary
+      {!isMeetup && <ExperienceMarkerSummary
         questId={quest.id}
         questTitle={quest.title}
         questLocation={
@@ -821,7 +840,7 @@ export function QuestPreviewCard({
         experiencePhotos={Array.isArray(quest.media_urls) ? (quest.media_urls as string[]) : []}
         userLocation={userLocation}
         isCompleted={isDone}
-      />
+      />}
 
       {saveError && (
         <p className="quest-sheet__error" role="alert">{saveError}</p>
@@ -841,6 +860,8 @@ export function QuestPreviewCard({
       {shareToast && (
         <div className="quest-share-toast" role="status">{shareToast}</div>
       )}
+
+      {isMeetup && <ReportMeetupPanel questId={quest.id} />}
 
       {onNext && (
         <div className="quest-sheet__actions">

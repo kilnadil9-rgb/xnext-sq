@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   APIProvider,
   AdvancedMarker,
@@ -29,6 +29,7 @@ import { MAPS_API_KEY, MAPS_MAP_ID, FALLBACK_CENTER, XNEXT_MAP_STYLES } from './
 import { MapErrorBoundary } from './MapErrorBoundary'
 import { QuestClusterer } from './QuestClusterer'
 import { QuestList } from './QuestList'
+import { DOG_MEETUPS_EMPTY_STATE, filterActiveNearby, isDogMeetup } from '../../lib/dogMeetups'
 import { QuestPreviewCard } from './QuestPreviewCard'
 import { GooglePoiSheet, type GooglePoiSelection } from './GooglePoiSheet'
 import {
@@ -295,6 +296,14 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
   // Phase 3: Timeline filter — which time window of experiences to show.
   const [timeframe, setTimeframe] = useState<Timeframe>('all')
   const [refreshKey, setRefreshKey] = useState(0)
+  // Dog Meetups filter + a 60s clock so ended meetups drop off even while the
+  // 24h nearby cache is still serving the same rows.
+  const [dogOnly, setDogOnly] = useState(false)
+  const [nowMs, setNowMs] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 60_000)
+    return () => window.clearInterval(id)
+  }, [])
   const [selectedQuest, setSelectedQuest] = useState<RankedQuest | null>(null)
   // Phase 1.8 Part 3: a tapped Google POI (separate from XNEXT experiences).
   const [selectedPoi, setSelectedPoi] = useState<GooglePoiSelection | null>(null)
@@ -434,25 +443,26 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
     }
   }, [preferences, radiusTouched, cinematic])
 
+  // Client-side expiry/lead-window guard for dog meetups (the RPC enforces it
+  // too, but cached responses can be up to 24h old).
+  const activeQuests = useMemo(() => filterActiveNearby(quests, nowMs), [quests, nowMs])
+
   const rankedQuests = useMemo(
     () =>
-      rankQuests(quests, {
+      rankQuests(activeQuests, {
         radiusKm,
         sortMode,
         pulseQuestIds,
         preferredClasses: preferences?.preferred_classes,
       }),
-    [quests, radiusKm, sortMode, pulseQuestIds, preferences],
+    [activeQuests, radiusKm, sortMode, pulseQuestIds, preferences],
   )
 
   // Phase 3: apply the Timeline filter to what the map + list actually show.
-  const displayedQuests = useMemo(
-    () =>
-      timeframe === 'all'
-        ? rankedQuests
-        : rankedQuests.filter((q) => matchesTimeframe(q, timeframe)),
-    [rankedQuests, timeframe],
-  )
+  const displayedQuests = useMemo(() => {
+    const base = dogOnly ? rankedQuests.filter((q) => isDogMeetup(q)) : rankedQuests
+    return timeframe === 'all' ? base : base.filter((q) => matchesTimeframe(q, timeframe))
+  }, [rankedQuests, timeframe, dogOnly])
 
   // Phase 3: broadcast the current nearby set so the Pulse/People sheets in
   // DashboardLayout can build real cards from data already loaded here (no
@@ -928,6 +938,20 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
 
             {/* Active Timeline filter chip — clearly shows the map is filtered
                 and offers a one-tap clear. */}
+            <button
+              type="button"
+              className="radar-filter-pill"
+              aria-pressed={dogOnly}
+              onClick={() => setDogOnly((v) => !v)}
+            >
+              🐕 Dog Meetups{dogOnly ? ' ✓' : ''}
+            </button>
+            {dogOnly && !loading && displayedQuests.length === 0 && (
+              <p className="radar-empty-note" role="status">
+                {DOG_MEETUPS_EMPTY_STATE}{' '}
+                <Link to="/dashboard/dog-meetups/new">Create a Dog Meetup</Link>
+              </p>
+            )}
             {timeframe !== 'all' && (
               <div className="radar-filter-chip" role="status">
                 <span>Showing: {TIMEFRAME_LABEL[timeframe]}</span>
@@ -1207,6 +1231,7 @@ function RadarScreen({ cinematic = false }: { cinematic?: boolean }) {
         onWiden={handleWiden}
         canWiden={canWiden}
         userLocation={locationStatus === 'active' ? userPosition : null}
+        dogOnly={dogOnly}
       />
     </div>
   )

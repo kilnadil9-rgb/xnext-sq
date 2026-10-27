@@ -1,7 +1,8 @@
 /**
  * AdminReviewPage — /dashboard/admin/review
  *
- * Lists pending_review quests for moderation.
+ * Lists pending_review quests for moderation (Dog Meetups are reviewed on
+ * /dashboard/admin/meetups instead).
  * Approve → published (quest enters Adventure Radar + map).
  * Reject  → archived (hidden from all views).
  *
@@ -89,7 +90,9 @@ export function AdminReviewPage() {
     if (error) {
       setFetchError(error.message)
     } else {
-      setQuests((data ?? []) as ReviewQuest[])
+      // Dog Meetups have their own review page (private photo → public copy
+      // flow); the generic approve button here must never touch them.
+      setQuests(((data ?? []) as ReviewQuest[]).filter((q) => q.listing_type !== 'dog_meetup'))
     }
     setLoadingQuests(false)
   }, [])
